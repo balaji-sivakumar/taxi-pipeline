@@ -6,10 +6,10 @@ Status legend: ✅ done · 🔜 next · ⬜ not started
 - ✅ Lesson 0: business problem, pipeline overview, app-dev vs data-eng, curriculum approval
 - ✅ Lesson 1: reproducible environment (`uv`), Polars vs pandas decision, requests for downloads, project skeleton, environment smoke test. Comprehension check: 4/4 correct (Polars/Parquet fit, transitive-graph lock, --locked vs --frozen, raw-as-evidence).
 - ✅ Lesson 2: explored real TLC/CloudFront source, chose yellow_tripdata_2024-01.parquet, inspected schema/nulls/size with Polars, recorded data contract as code (`schema.py`), fixed packaging gap, hit and resolved a real TLS-interception network issue. Comprehension check: 3/3 correct.
-- 🔜 Lesson 3: download + preserve raw file, idempotent ingestion
+- ✅ Lesson 3: wrote `ingest.py` (`download_month`) with size-verified idempotency and atomic temp-file writes into a Hive-partitioned raw layer; demonstrated fresh download, idempotent skip, and recovery from a deliberately corrupted file; added network-free mocked tests. Comprehension check: 3/3 correct.
 
 ## Phase 2 — Data understanding and quality
-- ⬜ Inspect Parquet metadata and schema
+- 🔜 Lesson 4: Inspect Parquet metadata and schema
 - ⬜ Profile the data
 - ⬜ Identify nulls, invalid timestamps, impossible distances, negative fares
 - ⬜ Define quality rules, separate valid/rejected records

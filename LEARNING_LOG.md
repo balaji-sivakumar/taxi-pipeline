@@ -27,5 +27,12 @@
 - Real failure hit (not staged): a Fortinet network appliance was intercepting/re-signing HTTPS to CloudFront, causing SSL verification failures in both curl and Python requests. Diagnosed via `openssl s_client` showing the cert issuer was Fortinet, not Amazon. Fixed by switching networks — not a code bug, and never fixable by disabling TLS verification.
 - Packaging gap: `src/taxi_pipeline` wasn't actually importable until `[build-system]` (hatchling) was added to `pyproject.toml` — a src-layout package needs explicit build-system config, it isn't automatic just from directory structure.
 
+## Lesson 3 — Idempotent ingestion
+- Idempotency for ingestion means more than "file exists" — it means "file exists in the state a successful prior run would have left it." Verified this concretely: corrupted an existing raw file down to 26 bytes, and `download_month()` correctly detected the size mismatch against a live `HEAD` request and re-downloaded, rather than trusting the corrupted file.
+- Atomic writes (temp file + `rename()` only after size verification) are what make the above check trustworthy — without it, a crash mid-download could itself leave a corrupted file sitting at the path we later trust.
+- Introduced Hive-style raw partitioning (`year=2024/month=01/...`) without yet justifying the trade-offs — that's Phase 3's job; for now it's just the convention we're committing to.
+- Tests for ingestion mock `requests.head`/`requests.get` entirely — a real network call in a test suite can fail for reasons that have nothing to do with code correctness (we proved this ourselves with the Fortinet interception in Lesson 2).
+- Deliberately no retry logic on network failure yet — a bare exception now is more honest than silently swallowing a failure; real retry/scheduling behavior is Phase 7's job (Prefect).
+
 ## Open questions
 - (none yet — add here as they come up)

@@ -51,3 +51,13 @@ Format: Decision / Context / Alternatives considered / Trade-off accepted.
 **Decision:** Record the exact column names and Polars dtypes we observed from the real source file as a plain `dict[str, pl.DataType]` constant, guarded by a unit test. This is deliberately just a record for now; actually validating future files against it is Phase 2's job.
 
 **Trade-off accepted:** This snapshot can go stale if TLC changes the schema and we forget to update it — acceptable because Phase 2 will build active validation against a live file, not just trust this constant blindly.
+
+## 6. Idempotency check is size-verified, not just existence-based
+
+**Context:** `download_month()` must be safely re-runnable. A naive `if path.exists(): skip` would treat a half-written or corrupted file from a crashed prior run as a successful prior run.
+
+**Alternatives considered:** Existence-only check (rejected — not robust to corruption, as demonstrated by manually corrupting a downloaded file and confirming a naive check would have skipped it incorrectly); content hash/checksum comparison (more rigorous, but TLC doesn't publish per-file checksums, and size-matching against a live `HEAD` request is a cheap, available substitute); always re-download unconditionally (rejected — wastes bandwidth/time on every run, defeats the point of idempotency).
+
+**Decision:** Before trusting an existing raw file, issue a `HEAD` request and compare declared `content-length` to the file's actual size on disk. Only skip if they match. Downloads are also written to a `.tmp` sibling and atomically `rename()`d into place only after the full download's size is verified — so a crash mid-download never leaves a file at the trusted final path at all.
+
+**Trade-off accepted:** One extra `HEAD` request per run even when nothing needs downloading — negligible cost, worth the correctness guarantee. No retry logic yet on network failure — deliberately deferred to Phase 7 (Prefect); a failure here should raise loudly, not be silently swallowed.
