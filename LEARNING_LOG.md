@@ -34,5 +34,17 @@
 - Tests for ingestion mock `requests.head`/`requests.get` entirely — a real network call in a test suite can fail for reasons that have nothing to do with code correctness (we proved this ourselves with the Fortinet interception in Lesson 2).
 - Deliberately no retry logic on network failure yet — a bare exception now is more honest than silently swallowing a failure; real retry/scheduling behavior is Phase 7's job (Prefect).
 
+## Lesson 4 — Parquet physical metadata and schema validation
+- A Parquet file is physically organized into row groups, each containing one independently-compressed column chunk per column; the footer can store per-chunk min/max/null-count statistics that let query engines skip whole row groups without reading them (predicate pushdown).
+- Real finding, not staged: TLC's published files have **no statistics written at all** (`is_stats_set` is `False` for every column), per `pyarrow.parquet.ParquetFile(path).metadata`. The format allows statistics; this writer simply didn't produce them. Means Phase 2 profiling must compute null counts/ranges itself rather than reading them for free.
+- Closed the loop from Lesson 2: `validate_schema()` now actively compares a file's real schema against our recorded `YELLOW_TRIPDATA_SCHEMA` contract and reports differences (missing column, new column, dtype mismatch) instead of just assuming the recorded contract still holds.
+- Added `pyarrow` as a new dependency specifically for metadata inspection — deliberately did not reach for DuckDB yet, even though it could do this too, to keep DuckDB's introduction at the point the course planned (Phase 3).
+
+## Lesson 5 — Profiling the data
+- Profiling is a distinct step from schema validation: validation asks "is the structure right" (columns/types); profiling asks "what does the content actually look like" (null rates, ranges) — without yet judging anything as valid or invalid. Profiling is what tells you what to even write quality rules about.
+- `profile_parquet()` computes null count/fraction for every column and min/max for numeric/temporal columns in a single Polars `.select(...).collect()` call, so the engine shares one scan of the file across every statistic instead of re-scanning per question.
+- Real, unstaged findings from the actual raw file: `tpep_pickup_datetime` min is `2002-12-31` (inside a file that should only contain January 2024 trips); `trip_distance` max is `312,722.3` miles; `fare_amount` min is `-899.0`; several fee columns go negative; `passenger_count` min is `0`; `RatecodeID` max is `99`, likely a sentinel/unknown value rather than a real code. These are now the concrete candidates for Lesson 6's quality rules.
+- min/max is deliberately left `None` for string/categorical columns (e.g. `store_and_fwd_flag`) — a scope decision (lexicographic ordering isn't a meaningful question for that column yet), not a technical limitation.
+
 ## Open questions
 - (none yet — add here as they come up)

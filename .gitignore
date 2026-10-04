@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .ruff_cache/
+.idea/
 
 # data files are preserved on disk, not in git history
 data/raw/*

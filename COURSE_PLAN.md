@@ -9,10 +9,10 @@ Status legend: ✅ done · 🔜 next · ⬜ not started
 - ✅ Lesson 3: wrote `ingest.py` (`download_month`) with size-verified idempotency and atomic temp-file writes into a Hive-partitioned raw layer; demonstrated fresh download, idempotent skip, and recovery from a deliberately corrupted file; added network-free mocked tests. Comprehension check: 3/3 correct.
 
 ## Phase 2 — Data understanding and quality
-- 🔜 Lesson 4: Inspect Parquet metadata and schema
-- ⬜ Profile the data
-- ⬜ Identify nulls, invalid timestamps, impossible distances, negative fares
-- ⬜ Define quality rules, separate valid/rejected records
+- ✅ Lesson 4: inspected physical Parquet metadata via pyarrow (row groups, column chunks, statistics) — found the real file has zero embedded statistics; built `validate_schema()` turning Lesson 2's static contract into an active, tested check against schema drift. Comprehension check: 3/3 correct.
+- ✅ Lesson 5: built `profile_parquet()` (one-pass null count/fraction + min/max per column) and ran it against the real raw file — surfaced a 2002 pickup timestamp, a 312,722-mile trip, fares to -$899, zero-passenger trips, and a RatecodeID=99 sentinel. Comprehension check: 3/3 correct.
+- 🔜 Lesson 6: Identify nulls, invalid timestamps, impossible distances, negative fares — define explicit quality rules
+- ⬜ Separate valid/rejected records (quarantine pattern)
 
 ## Phase 3 — Transformation and analytical storage
 - ⬜ Query Parquet directly with DuckDB

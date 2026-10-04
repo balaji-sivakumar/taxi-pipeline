@@ -61,3 +61,35 @@ Format: Decision / Context / Alternatives considered / Trade-off accepted.
 **Decision:** Before trusting an existing raw file, issue a `HEAD` request and compare declared `content-length` to the file's actual size on disk. Only skip if they match. Downloads are also written to a `.tmp` sibling and atomically `rename()`d into place only after the full download's size is verified — so a crash mid-download never leaves a file at the trusted final path at all.
 
 **Trade-off accepted:** One extra `HEAD` request per run even when nothing needs downloading — negligible cost, worth the correctness guarantee. No retry logic yet on network failure — deliberately deferred to Phase 7 (Prefect); a failure here should raise loudly, not be silently swallowed.
+
+## 7. Added pyarrow for physical Parquet metadata inspection
+
+**Context:** Polars' native Rust Parquet reader doesn't expose row-group/column-chunk-level metadata (compression, encodings, embedded min/max/null-count statistics) through its public API — it's not designed for that. We needed this to understand the real physical structure of our raw file and to check whether row-group statistics (which enable predicate pushdown) are actually present.
+
+**Alternatives considered:** DuckDB's `parquet_metadata()` table function (also capable, but rejected for now to keep DuckDB's introduction at Phase 3 as planned, rather than front-running it for a one-off inspection need); manually parsing the Parquet footer (rejected — reinventing a well-solved problem).
+
+**Decision:** Added `pyarrow` as a new runtime dependency, used specifically for low-level metadata inspection via `pyarrow.parquet.ParquetFile(path).metadata`.
+
+**Trade-off accepted:** One more dependency (34MB). Justified because it's the standard, purpose-built tool for this exact job, not a framework we're adopting wholesale.
+
+**Finding from using it:** the real TLC file has zero columns with statistics written at all (`is_stats_set` is `False` everywhere) — confirmed by `created_by: parquet-cpp-arrow version 14.0.2` in the file's own metadata. Predicate pushdown via row-group statistics is therefore not available for these files as published; Phase 2's profiling work will need to compute null counts and value ranges itself rather than reading them for free from the file.
+
+## 8. Schema contract validation implemented (`validate_schema`)
+
+**Context:** Lesson 2 recorded the observed schema as a static constant and explicitly deferred "actually validating a file against it" to Phase 2.
+
+**Decision:** `validate_schema(path)` in `src/taxi_pipeline/schema.py` compares a file's real schema (via `pl.scan_parquet(...).collect_schema()`) against `YELLOW_TRIPDATA_SCHEMA`, returning a list of human-readable differences (missing columns, unexpected new columns, type mismatches). An empty list means no drift.
+
+**Trade-off accepted:** Only checks column names and dtypes, not row-level content — that's Phase 2's later data-quality/profiling work, a deliberately separate concern from schema validation.
+
+## 9. One-pass profiling (`profile_parquet`) instead of per-column queries
+
+**Context:** Need null counts and min/max ranges for every column to decide what Lesson 6's quality rules should actually check. Since the real file carries no embedded statistics (decision #7), every number has to be computed by scanning the data.
+
+**Alternatives considered:** A separate `.select(...).collect()` per column/question (rejected — N separate full scans of a 47.6MB file instead of one); eagerly loading the whole file into memory first (rejected — unnecessary given Polars' lazy API can push all aggregations into a single scan).
+
+**Decision:** `profile_parquet(path)` builds one list of Polars expressions (null count for every column, min/max for numeric and datetime columns only) and submits them as a single `.select(...).collect()` call, so Polars' query engine shares one pass over the file across every statistic.
+
+**Trade-off accepted:** min/max is intentionally `None` for string/categorical columns (e.g. `store_and_fwd_flag`) — lexicographic min/max of a flag string isn't a meaningful question yet; revisit if a future column needs it.
+
+**Real findings from running this against the actual raw file:** `tpep_pickup_datetime` has a minimum of `2002-12-31` inside a file that's supposed to be January 2024 only; `trip_distance` max is `312,722.3` (impossible); `fare_amount` goes as low as `-899.0`; several fee/surcharge columns go negative; `passenger_count` min is `0`; `RatecodeID` max is `99`, likely a sentinel/unknown code. These become the concrete candidates for Lesson 6's quality rules.
