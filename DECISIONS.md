@@ -93,3 +93,22 @@ Format: Decision / Context / Alternatives considered / Trade-off accepted.
 **Trade-off accepted:** min/max is intentionally `None` for string/categorical columns (e.g. `store_and_fwd_flag`) — lexicographic min/max of a flag string isn't a meaningful question yet; revisit if a future column needs it.
 
 **Real findings from running this against the actual raw file:** `tpep_pickup_datetime` has a minimum of `2002-12-31` inside a file that's supposed to be January 2024 only; `trip_distance` max is `312,722.3` (impossible); `fare_amount` goes as low as `-899.0`; several fee/surcharge columns go negative; `passenger_count` min is `0`; `RatecodeID` max is `99`, likely a sentinel/unknown code. These become the concrete candidates for Lesson 6's quality rules.
+
+## 10. Quality rules implemented as the quarantine pattern, not silent drop/keep
+
+**Context:** Lesson 5's profiling surfaced concrete anomalies (impossible distances, negative fares, a 2002 timestamp, zero-passenger trips). Need to decide what to do about them without either losing information (silent drop) or corrupting downstream aggregates (silent keep).
+
+**Alternatives considered:** Silently filtering out bad rows (rejected — no audit trail, can't answer "how much data did we exclude and why"); silently keeping everything (rejected — a single `-$899` fare or 312,722-mile trip visibly distorts any aggregate); rejecting a row on its *first* failed rule only (rejected — loses diagnostic information when a row fails multiple rules for a related reason, e.g. a refund record failing both `fare_amount_non_negative` and `total_amount_non_negative` together).
+
+**Decision:** `apply_quality_rules()` in `src/taxi_pipeline/quality.py` evaluates every named rule against every row and returns `(valid_df, rejected_df)`; rejected rows keep all original columns plus `failed_rules`, a list of every rule name that row failed (not just the first). `write_rejected()` persists rejected rows to a Hive-partitioned `data/rejected/year=/month=/` layer, mirroring the raw layer's own convention — gitignored for the same reason raw is (storage guarantee, not a version-control one).
+
+**Specific rule thresholds and their reasoning:**
+- `pickup_within_file_month`: pickup time must fall in `[year-month-01, next-month-01)`. Checks *pickup* only (not dropoff) because a trip starting Jan 31 and ending Feb 1 is normal, not an error.
+- `dropoff_not_before_pickup`: a cross-column consistency check, not a range check — catches timestamp corruption a single-column bound can't.
+- `trip_distance_plausible`: `0 ≤ distance ≤ 100` miles. Deliberately does *not* reject `0` — no evidence a zero-distance trip is wrong, only that very large ones are.
+- `fare_amount_non_negative` / `total_amount_non_negative`: `≥ 0`. Negative values are refunds/corrections, not real trip charges.
+- `passenger_count_plausible`: null **or** 1-9. Null is explicitly allowed through — profiling (Lesson 5) showed ~4.73% of rows are null across 5 unrelated columns together, almost certainly one vendor's feed not reporting them, which is *missing*, not *invalid*. Conflating the two would incorrectly quarantine ~140,000 legitimate trips.
+
+**Result on the real January 2024 file:** 2,895,468 valid (97.67%), 69,156 rejected (2.33%). 35,384 of the rejected rows failed more than one rule simultaneously — mostly correlated `fare_amount`/`total_amount` negative-value pairs, consistent with being refund/correction records rather than independent random errors.
+
+**Trade-off accepted:** Thresholds (100 miles, passenger count 1-9) are deliberate, documented judgment calls, not derived from an authoritative source — they could be revisited if evidence suggests otherwise. Naive (tz-unaware) datetimes are used intentionally in the month-boundary comparison, suppressing ruff's `DTZ001`, because TLC's own timestamp columns are tz-naive and undocumented as to timezone — asserting a timezone here would invent a fact, not fix one.

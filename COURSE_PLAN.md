@@ -11,11 +11,10 @@ Status legend: ✅ done · 🔜 next · ⬜ not started
 ## Phase 2 — Data understanding and quality
 - ✅ Lesson 4: inspected physical Parquet metadata via pyarrow (row groups, column chunks, statistics) — found the real file has zero embedded statistics; built `validate_schema()` turning Lesson 2's static contract into an active, tested check against schema drift. Comprehension check: 3/3 correct.
 - ✅ Lesson 5: built `profile_parquet()` (one-pass null count/fraction + min/max per column) and ran it against the real raw file — surfaced a 2002 pickup timestamp, a 312,722-mile trip, fares to -$899, zero-passenger trips, and a RatecodeID=99 sentinel. Comprehension check: 3/3 correct.
-- 🔜 Lesson 6: Identify nulls, invalid timestamps, impossible distances, negative fares — define explicit quality rules
-- ⬜ Separate valid/rejected records (quarantine pattern)
+- ✅ Lesson 6: defined 6 named, documented quality rules (`build_quality_rules`), implemented the quarantine pattern (`apply_quality_rules` + `write_rejected` into `data/rejected/`) — real result 97.67% valid / 2.33% rejected, 35,384 rows failing multiple rules at once. Caught and correctly suppressed a real ruff DTZ001 finding (naive datetimes are intentional, matching TLC's own undocumented-timezone columns). Comprehension check: 3/3 correct.
 
 ## Phase 3 — Transformation and analytical storage
-- ⬜ Query Parquet directly with DuckDB
+- 🔜 Lesson 7: Query Parquet directly with DuckDB
 - ⬜ Clean and transform trip records
 - ⬜ Aggregate pickups by date/hour/zone
 - ⬜ Write curated Parquet, understand partitioning

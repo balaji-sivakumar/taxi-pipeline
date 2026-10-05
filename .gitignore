@@ -7,3 +7,5 @@ __pycache__/
 # data files are preserved on disk, not in git history
 data/raw/*
 !data/raw/.gitkeep
+data/rejected/*
+!data/rejected/.gitkeep

@@ -46,5 +46,12 @@
 - Real, unstaged findings from the actual raw file: `tpep_pickup_datetime` min is `2002-12-31` (inside a file that should only contain January 2024 trips); `trip_distance` max is `312,722.3` miles; `fare_amount` min is `-899.0`; several fee columns go negative; `passenger_count` min is `0`; `RatecodeID` max is `99`, likely a sentinel/unknown value rather than a real code. These are now the concrete candidates for Lesson 6's quality rules.
 - min/max is deliberately left `None` for string/categorical columns (e.g. `store_and_fwd_flag`) — a scope decision (lexicographic ordering isn't a meaningful question for that column yet), not a technical limitation.
 
+## Lesson 6 — Quality rules and the quarantine pattern
+- Quarantine beats both silent-drop (loses auditability) and silent-keep (corrupts downstream aggregates): rejected rows are preserved in their own Hive-partitioned layer (`data/rejected/`), tagged with every rule they violated, not just the first.
+- A rule set is a set of deliberate, documented decisions, not a universal truth — each threshold (100-mile cap, passenger count 1-9) is traceable to a specific profiling finding from Lesson 5, recorded with reasoning in `DECISIONS.md`.
+- Missing is not the same as invalid: `passenger_count` null is allowed through (structural, one vendor's feed, per Lesson 5's co-occurring-nulls finding) while `passenger_count = 0` (present but implausible) is rejected. Conflating the two would have wrongly quarantined ~140,000 legitimate trips.
+- Real result on the actual file: 97.67% valid / 2.33% rejected; 35,384 rejected rows failed more than one rule at once, mostly correlated negative fare/total pairs — evidence they're refund/correction records, not independent random errors.
+- Caught a real `ruff` finding (`DTZ001`, naive datetime) and correctly did *not* blindly fix it — TLC's own timestamp columns are tz-naive and the timezone is undocumented, so asserting one would invent a fact. Suppressed with an explanation instead of silencing the rule project-wide.
+
 ## Open questions
 - (none yet — add here as they come up)
