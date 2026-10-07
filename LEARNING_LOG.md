@@ -53,5 +53,11 @@
 - Real result on the actual file: 97.67% valid / 2.33% rejected; 35,384 rejected rows failed more than one rule at once, mostly correlated negative fare/total pairs — evidence they're refund/correction records, not independent random errors.
 - Caught a real `ruff` finding (`DTZ001`, naive datetime) and correctly did *not* blindly fix it — TLC's own timestamp columns are tz-naive and the timezone is undocumented, so asserting one would invent a fact. Suppressed with an explanation instead of silencing the rule project-wide.
 
+## Lesson 7 — Querying Parquet directly with DuckDB
+- DuckDB queries a Parquet file in place via a path string in SQL — no `CREATE TABLE`, no import/load step. Confirmed via `EXPLAIN` that selecting 2 of 19 columns produces a `PARQUET_SCAN` node whose `Projections` list only those 2 — the column-chunk layout from Lesson 4 being exploited by a real engine, not just hand-simulated.
+- Second real cost of Lesson 4's missing statistics, beyond disabled row-group pruning: DuckDB's own cardinality estimate for `fare_amount > 100` was `~592,924` (a generic ~20%-selectivity fallback) against an actual count of `7,995` — off by ~74x. No stats means the query *optimizer* is also flying blind, which matters more once multi-table joins are involved (Phase 5).
+- `read_parquet(glob, hive_partitioning=true)` exposes directory names (`year=2024/month=01`) as real queryable columns, even though they don't exist in the file's own schema at all — confirmed the dependency on this flag directly by reproducing the `BinderException` that occurs without it.
+- DuckDB's role stays deliberately scoped: a convenience tool for Phase 3's SQL-shaped work, not a redefinition of what counts as data engineering. Phases 1-2's work (contracts, idempotency, validation, quarantine) is already data engineering regardless of which query engine does the aggregation.
+
 ## Open questions
 - (none yet — add here as they come up)

@@ -14,7 +14,7 @@ Status legend: ✅ done · 🔜 next · ⬜ not started
 - ✅ Lesson 6: defined 6 named, documented quality rules (`build_quality_rules`), implemented the quarantine pattern (`apply_quality_rules` + `write_rejected` into `data/rejected/`) — real result 97.67% valid / 2.33% rejected, 35,384 rows failing multiple rules at once. Caught and correctly suppressed a real ruff DTZ001 finding (naive datetimes are intentional, matching TLC's own undocumented-timezone columns). Comprehension check: 3/3 correct.
 
 ## Phase 3 — Transformation and analytical storage
-- 🔜 Lesson 7: Query Parquet directly with DuckDB
+- ✅ Lesson 7: queried the raw Parquet file directly with DuckDB (no load step), confirmed column-projection pushdown via EXPLAIN, found DuckDB's cardinality estimate off by ~74x due to Lesson 4's missing statistics, and exposed Hive partition columns (year=/month=) via `read_parquet(glob, hive_partitioning=true)`. Comprehension check: 3/3 correct.
 - ⬜ Clean and transform trip records
 - ⬜ Aggregate pickups by date/hour/zone
 - ⬜ Write curated Parquet, understand partitioning

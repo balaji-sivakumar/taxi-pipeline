@@ -112,3 +112,15 @@ Format: Decision / Context / Alternatives considered / Trade-off accepted.
 **Result on the real January 2024 file:** 2,895,468 valid (97.67%), 69,156 rejected (2.33%). 35,384 of the rejected rows failed more than one rule simultaneously — mostly correlated `fare_amount`/`total_amount` negative-value pairs, consistent with being refund/correction records rather than independent random errors.
 
 **Trade-off accepted:** Thresholds (100 miles, passenger count 1-9) are deliberate, documented judgment calls, not derived from an authoritative source — they could be revisited if evidence suggests otherwise. Naive (tz-unaware) datetimes are used intentionally in the month-boundary comparison, suppressing ruff's `DTZ001`, because TLC's own timestamp columns are tz-naive and undocumented as to timezone — asserting a timezone here would invent a fact, not fix one.
+
+## 11. Added DuckDB for SQL-based querying/transformation, starting in Phase 3
+
+**Context:** Phase 3's transformation work (joins against a zone lookup table in Phase 5, multi-file aggregation in Phase 4) is naturally SQL-shaped. Polars (Decision #1) remains fully capable of this too.
+
+**Alternatives considered:** Staying entirely in Polars for aggregation (valid — Polars also supports Hive-partition-aware lazy scanning); introducing DuckDB earlier, e.g. for Lesson 4's metadata inspection (rejected then, to avoid front-running this planned introduction point).
+
+**Decision:** Added `duckdb` as a dependency specifically for Phase 3's SQL-based transformation/aggregation work. It queries Parquet files in place — no `CREATE TABLE`/import step — and with `read_parquet(glob, hive_partitioning=true)`, it exposes our Lesson 3 directory-naming convention (`year=/month=`) as queryable columns even though they don't exist in the files' own schema at all.
+
+**Important finding carried over from Lesson 4:** because the real file has zero embedded statistics, DuckDB's query planner has no real cardinality information either — `EXPLAIN` on `WHERE fare_amount > 100` estimated ~592,924 matching rows (a generic "20% selectivity" fallback guess); the actual count is 7,995, off by ~74x. This doesn't just disable row-group pruning (Lesson 4) — it also means the query optimizer's own planning decisions (e.g. join order in future multi-table queries) are working from a bad estimate, not just a missed optimization.
+
+**Trade-off accepted:** A second SQL-capable tool alongside Polars in the stack — justified because it was the course's planned tool for this role and because its Hive-partition-aware multi-file querying is a direct fit for Phase 4's multi-month shape. DuckDB is a convenience/ergonomics choice for this phase, not something data engineering is inherently tied to — everything built in Phases 1-2 (contracts, idempotency, validation, quarantine) remains valid regardless of which query engine does the aggregation.
