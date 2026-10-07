@@ -59,5 +59,13 @@
 - `read_parquet(glob, hive_partitioning=true)` exposes directory names (`year=2024/month=01`) as real queryable columns, even though they don't exist in the file's own schema at all — confirmed the dependency on this flag directly by reproducing the `BinderException` that occurs without it.
 - DuckDB's role stays deliberately scoped: a convenience tool for Phase 3's SQL-shaped work, not a redefinition of what counts as data engineering. Phases 1-2's work (contracts, idempotency, validation, quarantine) is already data engineering regardless of which query engine does the aggregation.
 
+## Lesson 8 — Cleaning and transforming trip records
+- Curated is where we impose *our* naming conventions, not the source's — raw keeps `PULocationID`/`tpep_pickup_datetime` forever; curated renames to `pickup_location_id`/`pickup_datetime` because it's our derived product, not TLC's export.
+- Reconciled two earlier decisions by scoping them: `clean_trips()` uses DuckDB internally for the SQL-shaped renaming/derivation, but keeps a strict Polars-in/Polars-out contract, so the pipeline isn't committed to DuckDB's data structures end to end.
+- DuckDB can query a Polars DataFrame directly by Python variable name (`FROM valid_df`) — no file, no explicit registration step.
+- Real, non-obvious finding: DuckDB's native microsecond timestamp resolution only affects *derived* columns (`pickup_hour`, computed via `date_trunc`) — a passthrough column (`pickup_datetime`) keeps its original nanosecond precision from the source file. Confirmed by checking both dtypes after the same query, not assumed.
+- Curated column selection is a deliberate narrowing tied to the actual business problem (hourly pickup-demand forecasting) — dropped fare-breakdown detail and vendor/rate-code columns not needed for that question; raw still has them in full if a future need arises.
+- Verified hour-bucketing correctness at both a within-day boundary (`10:59:59`→10, `11:00:00`→11) and a day boundary (`23:59:59` stays in hour 23) — boundary bugs in time-bucketing are a classic, easy-to-miss source of errors.
+
 ## Open questions
 - (none yet — add here as they come up)

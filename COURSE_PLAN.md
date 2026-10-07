@@ -15,8 +15,8 @@ Status legend: ✅ done · 🔜 next · ⬜ not started
 
 ## Phase 3 — Transformation and analytical storage
 - ✅ Lesson 7: queried the raw Parquet file directly with DuckDB (no load step), confirmed column-projection pushdown via EXPLAIN, found DuckDB's cardinality estimate off by ~74x due to Lesson 4's missing statistics, and exposed Hive partition columns (year=/month=) via `read_parquet(glob, hive_partitioning=true)`. Comprehension check: 3/3 correct.
-- ⬜ Clean and transform trip records
-- ⬜ Aggregate pickups by date/hour/zone
+- ✅ Lesson 8: built `clean_trips()` — DuckDB internally (renaming columns to curated names, deriving `pickup_hour` via `date_trunc`), Polars in/out at the boundary. Verified against the real file: row count preserved exactly, hour-bucketing correct at hour and day boundaries. Found DuckDB silently downcasts derived (not passthrough) timestamp columns to microsecond precision. Comprehension check: 3/3 correct.
+- 🔜 Lesson 9: Aggregate pickups by date/hour/zone
 - ⬜ Write curated Parquet, understand partitioning
 
 ## Phase 4 — Multi-month reliable pipeline
