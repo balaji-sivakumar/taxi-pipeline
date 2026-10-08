@@ -1,24 +1,17 @@
-import datetime
 import operator
 from functools import reduce
 from pathlib import Path
 
 import polars as pl
 
+from taxi_pipeline.dates import month_bounds
+
 REJECTED_DIR = Path("data/rejected")
 
 
 def build_quality_rules(year: int, month: int) -> dict[str, pl.Expr]:
     """Named, documented boolean rules defining what counts as a valid trip record. See DECISIONS.md for reasoning behind each bound."""
-    # Naive datetimes deliberately: tpep_pickup_datetime's own dtype is tz-naive
-    # and TLC never documents a timezone for it, so asserting one here would be
-    # inventing a fact, not fixing one, and would break comparison against the column.
-    month_start = datetime.datetime(year, month, 1)  # noqa: DTZ001
-    month_end = (
-        datetime.datetime(year + 1, 1, 1)  # noqa: DTZ001
-        if month == 12
-        else datetime.datetime(year, month + 1, 1)  # noqa: DTZ001
-    )
+    month_start, month_end = month_bounds(year, month)
 
     return {
         "pickup_within_file_month": (pl.col("tpep_pickup_datetime") >= month_start)

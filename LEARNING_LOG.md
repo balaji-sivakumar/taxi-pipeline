@@ -67,5 +67,13 @@
 - Curated column selection is a deliberate narrowing tied to the actual business problem (hourly pickup-demand forecasting) — dropped fare-breakdown detail and vendor/rate-code columns not needed for that question; raw still has them in full if a future need arises.
 - Verified hour-bucketing correctness at both a within-day boundary (`10:59:59`→10, `11:00:00`→11) and a day boundary (`23:59:59` stays in hour 23) — boundary bugs in time-bucketing are a classic, easy-to-miss source of errors.
 
+## Lesson 9 — Aggregating pickups by date/hour/zone
+- A naive `GROUP BY` can only emit rows for combinations that occurred in the data — a zero-trip hour-zone pair produces no row at all, which looks identical to "missing data" rather than "zero demand." Proved this concretely: naive grouping gave 77,389 rows; the complete grid has 193,440 — 116,051 real zero-demand points (60%) would have silently vanished.
+- Fix: build the complete grid first (every hour × every observed zone via a cross join), then left-join real counts and `fill_null(0)` — zero becomes explicit, not absent. This matters specifically because Phase 6's lag features (`demand 1 hour ago`) break the moment there's an unexplained gap in the time series.
+- Tool choice is per-task, not all-or-nothing: Lesson 8 used DuckDB because renaming/`date_trunc` was SQL-shaped; this lesson's cross join + group-by + left join is equally natural in Polars' own API, and staying in Polars avoided re-triggering DuckDB's microsecond-precision downcast (Lesson 8's finding) on a column this join depends on.
+- Verified rather than assumed: grid dimensions (744 hours × 260 observed zones = 193,440), count conservation (`pickup_count` sums to exactly the valid trip count, 2,895,468), and that the join key's dtype actually matched on both sides before trusting the result — a silent dtype mismatch here would have produced all-null counts, not an error.
+- "Every zone" is honestly scoped: zones observed with *some* activity this month, not the official ~265-zone TLC list (not loaded yet). A zone with zero pickups all month is still absent — a documented limitation, not an oversight.
+- `month_bounds()` was extracted from `quality.py` into `dates.py` only once a second real caller (this lesson) needed the identical calculation — refactoring on the second real use, not preemptively.
+
 ## Open questions
 - (none yet — add here as they come up)

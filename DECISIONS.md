@@ -136,3 +136,17 @@ Format: Decision / Context / Alternatives considered / Trade-off accepted.
 **Curated-layer column selection, a deliberate narrowing:** kept `pickup_datetime`, `pickup_hour`, `pickup_location_id`, `dropoff_location_id`, `trip_distance`, `passenger_count`, `fare_amount`, `total_amount`. Dropped fare-breakdown detail columns (`mta_tax`, `tolls_amount`, `improvement_surcharge`, `congestion_surcharge`, `Airport_fee`, `extra`), `VendorID`, `RatecodeID`, `store_and_fwd_flag`, and `payment_type` — none of these are needed for hourly pickup-demand forecasting (the project's actual business problem from Lesson 0), and raw already preserves them in full if a future need arises.
 
 **Verified against the real file:** row count in equals row count out (2,895,468 → 2,895,468, nothing silently dropped), and hour-bucketing is correct at both a within-day boundary (`10:59:59`→hour 10, `11:00:00`→hour 11) and a day boundary (`23:59:59` stays in hour 23, doesn't spill to the next day).
+
+## 13. Dense hour×zone grid, built in Polars not DuckDB, with explicit zero-fill
+
+**Context:** `aggregate_hourly_demand()` needs to turn trip-level rows into hourly pickup counts per zone — the actual curated signal this project exists to produce. A plain `GROUP BY` only emits rows for combinations that occurred in the data.
+
+**Alternatives considered:** A naive `group_by(pickup_hour, pickup_location_id).agg(count())` (rejected — proven to silently omit 116,051 of 193,440 real hour-zone combinations on the actual January 2024 data, exactly because zero-trip combinations produce no row to group); doing this step in DuckDB, continuing Lesson 8's tool (rejected for *this specific step* — the cross join, group-by, and left join are equally natural in Polars' own API, and staying in Polars avoids re-introducing the microsecond-precision downcast found in Lesson 8 on a join-critical column).
+
+**Decision:** Build the complete grid explicitly: every hour in the month (`pl.datetime_range`) cross-joined with every zone *observed anywhere in the month's cleaned data* (not the official ~265-zone TLC list, which isn't loaded yet — documented as a real, current limitation), left-joined against actual counts, with `fill_null(0)`.
+
+**Verified against the real file:** grid shape is exactly `744 hours × 260 observed zones = 193,440` rows; `pickup_count` sums to exactly `2,895,468` (the valid trip count, nothing double-counted or dropped); confirmed the join's `pickup_hour` dtype matches on both sides (`datetime[μs]` from Lesson 8's DuckDB-derived column vs. `pl.datetime_range`'s default) before trusting any result — a dtype mismatch here would have silently produced all-null counts instead of an error.
+
+**Refactor alongside this lesson:** extracted `month_bounds(year, month)` out of `quality.py` into a new `dates.py`, since this lesson needed the identical calculation — the second real use case, not a speculative one, is what justified the extraction (see `CLAUDE.md`'s "refactor only when the need becomes visible").
+
+**Trade-off accepted:** "Complete" here means complete relative to zones that had *some* activity in the month, not the true universe of all NYC taxi zones. A zone with zero pickups for an entire month is still absent from the grid. Revisit once the official TLC zone lookup table is loaded (likely Phase 5).
