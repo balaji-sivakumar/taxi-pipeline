@@ -17,10 +17,10 @@ Status legend: ✅ done · 🔜 next · ⬜ not started
 - ✅ Lesson 7: queried the raw Parquet file directly with DuckDB (no load step), confirmed column-projection pushdown via EXPLAIN, found DuckDB's cardinality estimate off by ~74x due to Lesson 4's missing statistics, and exposed Hive partition columns (year=/month=) via `read_parquet(glob, hive_partitioning=true)`. Comprehension check: 3/3 correct.
 - ✅ Lesson 8: built `clean_trips()` — DuckDB internally (renaming columns to curated names, deriving `pickup_hour` via `date_trunc`), Polars in/out at the boundary. Verified against the real file: row count preserved exactly, hour-bucketing correct at hour and day boundaries. Found DuckDB silently downcasts derived (not passthrough) timestamp columns to microsecond precision. Comprehension check: 3/3 correct.
 - ✅ Lesson 9: built `aggregate_hourly_demand()` — a dense hour×zone grid (pure Polars, not DuckDB) with explicit zero-fill. Proved a naive GROUP BY would have silently missed 116,051 of 193,440 real hour-zone combinations (60%). Verified grid shape (744×260) and count conservation (sums to 2,895,468) against the real file. Extracted `month_bounds()` from `quality.py` on its second real use. Comprehension check: 3/3 correct.
-- 🔜 Lesson 10: Write curated Parquet, understand partitioning
+- ✅ Lesson 10: built `write_curated()` — `year=/month=` partitioning (matching raw's granularity, rejected zone-partitioning as a small-files trap), always-overwrite idempotency model (contrasted with Lesson 3's skip-if-correct). Verified 47.6MB raw → 114KB curated (~400x), overwrite-not-merge directly, and end-to-end count conservation via DuckDB's Hive-partition glob. Comprehension check: 3/3 correct. **Phase 3 complete.**
 
 ## Phase 4 — Multi-month reliable pipeline
-- ⬜ Process multiple monthly files, track processed inputs
+- 🔜 Lesson 11: Process multiple monthly files, track processed inputs
 - ⬜ Incremental loads, deduplication, backfills
 - ⬜ Automated tests
 

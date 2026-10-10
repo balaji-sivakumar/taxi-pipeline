@@ -75,5 +75,14 @@
 - "Every zone" is honestly scoped: zones observed with *some* activity this month, not the official ~265-zone TLC list (not loaded yet). A zone with zero pickups all month is still absent — a documented limitation, not an oversight.
 - `month_bounds()` was extracted from `quality.py` into `dates.py` only once a second real caller (this lesson) needed the identical calculation — refactoring on the second real use, not preemptively.
 
+## Lesson 10 — Writing curated Parquet and understanding partitioning
+- Partitioning granularity is a deliberate trade-off, not a default: too coarse loses pruning benefit as data accumulates; too fine creates the "small file problem." The right granularity matches the unit the pipeline actually processes in — ours is monthly end to end (ingest, validate, transform, aggregate), so curated partitions by `year=/month=` too, not by zone, even though zone-level queries matter for Phase 6.
+- "Idempotent" doesn't always mean "skip if already done." `download_month()` skips re-downloading because downloading is expensive and external (Lesson 3). `write_curated()` always overwrites, with no skip check at all, because the aggregation is a deterministic, cheap-to-recompute function of raw + code — re-running should replace stale output, not preserve it. Both are genuinely idempotent; the mechanism differs because the economics differ.
+- Confirmed directly, not assumed: writing a 1-row result over a prior 193,440-row file produces exactly 1 row back (replace, not merge), with no leftover `.tmp` file — the atomic write pattern from Lesson 3 carries over even though the skip-check doesn't.
+- 47.6MB raw → 114KB curated (~400x reduction) — this is the actual size of the signal Phase 6 trains on; a curated layer's whole purpose is compressing business-relevant signal out of much larger raw data.
+- Full-circle check: re-queried the curated layer with the exact same DuckDB Hive-partition glob from Lesson 7 and confirmed `total_pickups` sums to `2,895,468` end-to-end, matching the valid trip count from Lesson 6 — every layer agrees.
+
+**Phase 3 (Transformation and analytical storage) is complete.**
+
 ## Open questions
 - (none yet — add here as they come up)

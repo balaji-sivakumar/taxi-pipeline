@@ -150,3 +150,15 @@ Format: Decision / Context / Alternatives considered / Trade-off accepted.
 **Refactor alongside this lesson:** extracted `month_bounds(year, month)` out of `quality.py` into a new `dates.py`, since this lesson needed the identical calculation — the second real use case, not a speculative one, is what justified the extraction (see `CLAUDE.md`'s "refactor only when the need becomes visible").
 
 **Trade-off accepted:** "Complete" here means complete relative to zones that had *some* activity in the month, not the true universe of all NYC taxi zones. A zone with zero pickups for an entire month is still absent from the grid. Revisit once the official TLC zone lookup table is loaded (likely Phase 5).
+
+## 14. Curated partitioned by year=/month=, same granularity as raw — and a different idempotency model
+
+**Context:** `aggregate_hourly_demand()`'s output (Lesson 9) needs a persisted home. The tempting alternative is partitioning by `pickup_location_id` (zone), since Phase 6 will eventually want per-zone time series.
+
+**Alternatives considered:** Partition by zone (rejected — one month's aggregation touches all 260 zones in a single run; writing by zone would mean 260 small files per month for no pruning benefit not already achievable via column pruning + a `WHERE` filter within one month-sized file); partition by year only (rejected — too coarse once multiple months accumulate, poor pruning).
+
+**Decision:** `data/curated/year=/month=/`, matching raw's granularity exactly — because partitioning granularity should match the unit the pipeline actually processes in (ingest, validate, transform, and aggregate all already operate one month at a time), which matters directly for Phase 4's incremental processing.
+
+**A different idempotency model than `download_month()` (Lesson 3), deliberately:** `download_month()` is idempotent via a *skip-if-correct* check, because downloading is expensive and external. `write_curated()` has no skip check at all — it **always overwrites**, because the aggregation is a deterministic, cheap-to-recompute function of raw data + code; re-running should replace stale output with whatever the current logic produces, not preserve a possibly-outdated prior result. This is idempotency in the more fundamental sense (repeating the operation doesn't change the correctness of the outcome) without needing a skip optimization on top of it. The atomic temp-file + rename pattern *does* carry over from Lesson 3, for the same reason: a crash mid-write shouldn't leave a corrupted file at the trusted path.
+
+**Verified against the real file:** 47.6MB raw → 114KB curated (~400x reduction) for January 2024 — the actual size of the signal Phase 6 will train on. Confirmed via DuckDB's Hive-partition glob (same mechanism as Lesson 7) that `total_pickups` across the curated layer sums to exactly `2,895,468`, matching the valid trip count end-to-end. Confirmed overwrite-not-merge directly: writing a 1-row result over a 193,440-row prior file yields exactly 1 row back, with no leftover `.tmp` file.

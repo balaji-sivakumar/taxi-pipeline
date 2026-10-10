@@ -9,3 +9,5 @@ data/raw/*
 !data/raw/.gitkeep
 data/rejected/*
 !data/rejected/.gitkeep
+data/curated/*
+!data/curated/.gitkeep
