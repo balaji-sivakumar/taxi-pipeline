@@ -21,8 +21,8 @@ Status legend: ✅ done · 🔜 next · ⬜ not started
 
 ## Phase 4 — Multi-month reliable pipeline
 - ✅ Lesson 11: built a JSON manifest (`manifest.py`) and pipeline driver (`process_month`/`process_months` in `pipeline.py`) for pipeline-level idempotency, layered on top of each stage's own. Processed January + February for real, proved rerunning skips both with zero filesystem/network activity, and that `force=True` bypasses only the manifest check (download_month's own skip still applies underneath). Manifest deliberately gitignored (claims only valid relative to local, also-gitignored raw/curated files). Comprehension check: 3/3 correct.
-- 🔜 Lesson 12: Incremental loads, deduplication, backfills
-- ⬜ Automated tests
+- ✅ Lesson 12: investigated deduplication against real data — found 62,218 business-key "duplicates" were mostly legitimate refund pairs already resolved by an unrelated rule; the remaining 16 are likely genuinely distinct trips with no true ID to disambiguate them, so deliberately did NOT build a dedup step. Added source-change detection (`raw_file_size` in the manifest, `download_month()` always runs first) — trading away Lesson 11's zero-cost skip for correctness. Made `process_months()` backfill-resilient: isolates per-month failures (proven with a real 403 on a nonexistent month) instead of aborting the batch. Comprehension check: 3/3 correct.
+- 🔜 Lesson 13: Automated tests
 
 ## Phase 5 — Trend analysis
 - ⬜ Hourly/daily/weekly demand analysis, zone comparisons, visualizations
