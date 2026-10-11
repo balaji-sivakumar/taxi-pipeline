@@ -22,10 +22,10 @@ Status legend: ✅ done · 🔜 next · ⬜ not started
 ## Phase 4 — Multi-month reliable pipeline
 - ✅ Lesson 11: built a JSON manifest (`manifest.py`) and pipeline driver (`process_month`/`process_months` in `pipeline.py`) for pipeline-level idempotency, layered on top of each stage's own. Processed January + February for real, proved rerunning skips both with zero filesystem/network activity, and that `force=True` bypasses only the manifest check (download_month's own skip still applies underneath). Manifest deliberately gitignored (claims only valid relative to local, also-gitignored raw/curated files). Comprehension check: 3/3 correct.
 - ✅ Lesson 12: investigated deduplication against real data — found 62,218 business-key "duplicates" were mostly legitimate refund pairs already resolved by an unrelated rule; the remaining 16 are likely genuinely distinct trips with no true ID to disambiguate them, so deliberately did NOT build a dedup step. Added source-change detection (`raw_file_size` in the manifest, `download_month()` always runs first) — trading away Lesson 11's zero-cost skip for correctness. Made `process_months()` backfill-resilient: isolates per-month failures (proven with a real 403 on a nonexistent month) instead of aborting the batch. Comprehension check: 3/3 correct.
-- 🔜 Lesson 13: Automated tests
+- ✅ Lesson 13: wired `validate_schema()` into `process_month()` (raises a specific `RuntimeError` on drift, correctly caught by Lesson 12's backfill resilience with zero changes); deliberately left `profile_parquet()` un-wired (human diagnostic tool, no automated action to take); added `raw_dir`/`rejected_dir`/`curated_dir` overrides (a gap writing the first real integration test surfaced); added `test_integration.py` — real stages composed together, not mocked. Comprehension check: 3/3 correct. Caught and fixed a further gap: no integration test had exercised `process_months()` (multi-month) with real stages — added two (independent correctness across real months; a real mid-batch failure leaving zero trace). Confirmed `process_months()` is strictly serial, no parallelism anywhere. **Phase 4 complete.**
 
 ## Phase 5 — Trend analysis
-- ⬜ Hourly/daily/weekly demand analysis, zone comparisons, visualizations
+- 🔜 Lesson 14: Hourly/daily/weekly demand analysis, zone comparisons, visualizations
 
 ## Phase 6 — Prediction
 - ⬜ Define prediction target, baseline, calendar/lag features (leakage-safe)

@@ -14,6 +14,7 @@ def _patched_stages(raw_path):
 
     return (
         patch("taxi_pipeline.pipeline.download_month", return_value=raw_path),
+        patch("taxi_pipeline.pipeline.validate_schema", return_value=[]),
         patch("polars.scan_parquet", return_value=MagicMock()),
         patch(
             "taxi_pipeline.pipeline.apply_quality_rules",
@@ -36,6 +37,7 @@ def _run_with_patches(raw_path, *args, **kwargs):
         patchers[4],
         patchers[5],
         patchers[6],
+        patchers[7],
     ):
         result = process_month(*args, **kwargs)
     return result, mock_download
@@ -52,7 +54,8 @@ def test_process_month_skips_when_raw_file_size_matches(tmp_path):
     )
 
     assert result == {"skipped": True}
-    mock_download.assert_called_once_with(2024, 1)
+    mock_download.assert_called_once()
+    assert mock_download.call_args[0][:2] == (2024, 1)
 
 
 def test_process_month_detects_changed_source_and_reprocesses(tmp_path):
@@ -76,7 +79,8 @@ def test_process_month_runs_full_pipeline_when_not_processed(tmp_path):
         raw_path, 2024, 1, manifest_path=manifest_path
     )
 
-    mock_download.assert_called_once_with(2024, 1)
+    mock_download.assert_called_once()
+    assert mock_download.call_args[0][:2] == (2024, 1)
     assert result["valid_rows"] == 2
     assert result["rejected_rows"] == 1
     assert result["curated_rows"] == 3
@@ -100,7 +104,7 @@ def test_process_month_force_reprocesses_even_if_already_processed(tmp_path):
 def test_process_months_continues_past_one_failure(tmp_path):
     manifest_path = tmp_path / "manifest.json"
 
-    def fake_download(year, month):
+    def fake_download(year, month, raw_dir=None):
         if month == 6:
             raise RuntimeError("source not found")
         path = tmp_path / f"{year}-{month}.parquet"
@@ -116,6 +120,7 @@ def test_process_months_continues_past_one_failure(tmp_path):
         patchers[4],
         patchers[5],
         patchers[6],
+        patchers[7],
     ):
         results = process_months(
             [(2024, 1), (2024, 6), (2024, 2)], manifest_path=manifest_path

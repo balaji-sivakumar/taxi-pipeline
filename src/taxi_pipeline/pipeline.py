@@ -5,19 +5,26 @@ from pathlib import Path
 import polars as pl
 
 from taxi_pipeline.aggregate import aggregate_hourly_demand
-from taxi_pipeline.curated import write_curated
-from taxi_pipeline.ingest import download_month
+from taxi_pipeline.curated import CURATED_DIR, write_curated
+from taxi_pipeline.ingest import RAW_DIR, download_month
 from taxi_pipeline.manifest import MANIFEST_PATH, load_manifest, record_processed
-from taxi_pipeline.quality import apply_quality_rules, write_rejected
+from taxi_pipeline.quality import REJECTED_DIR, apply_quality_rules, write_rejected
+from taxi_pipeline.schema import validate_schema
 from taxi_pipeline.transform import clean_trips
 
 logger = logging.getLogger(__name__)
 
 
 def process_month(
-    year: int, month: int, force: bool = False, manifest_path: Path = MANIFEST_PATH
+    year: int,
+    month: int,
+    force: bool = False,
+    manifest_path: Path = MANIFEST_PATH,
+    raw_dir: Path = RAW_DIR,
+    rejected_dir: Path = REJECTED_DIR,
+    curated_dir: Path = CURATED_DIR,
 ) -> dict:
-    """Run download -> validate -> clean -> aggregate -> curate for one month.
+    """Run download -> validate schema -> validate quality -> clean -> aggregate -> curate.
 
     download_month() always runs first (a cheap HEAD check even when it ends up
     skipping the actual download), so we can detect a source file that changed
@@ -25,7 +32,7 @@ def process_month(
     Skips the compute stages only if the manifest already records this exact
     raw_file_size as processed, unless force=True.
     """
-    raw_path = download_month(year, month)
+    raw_path = download_month(year, month, raw_dir)
     raw_file_size = raw_path.stat().st_size
 
     key = f"{year:04d}-{month:02d}"
@@ -42,12 +49,18 @@ def process_month(
             raw_file_size,
         )
 
+    schema_differences = validate_schema(raw_path)
+    if schema_differences:
+        raise RuntimeError(
+            f"schema drift detected for {key}: {'; '.join(schema_differences)}"
+        )
+
     lf = pl.scan_parquet(raw_path)
     valid_df, rejected_df = apply_quality_rules(lf, year, month)
-    write_rejected(rejected_df, year, month)
+    write_rejected(rejected_df, year, month, rejected_dir)
     cleaned = clean_trips(valid_df)
     demand = aggregate_hourly_demand(cleaned, year, month)
-    write_curated(demand, year, month)
+    write_curated(demand, year, month, curated_dir)
 
     info = {
         "processed_at": datetime.datetime.now(datetime.UTC).isoformat(),
@@ -64,6 +77,9 @@ def process_months(
     months: list[tuple[int, int]],
     force: bool = False,
     manifest_path: Path = MANIFEST_PATH,
+    raw_dir: Path = RAW_DIR,
+    rejected_dir: Path = REJECTED_DIR,
+    curated_dir: Path = CURATED_DIR,
 ) -> list[dict]:
     """Process each month independently -- one month failing is recorded and
     logged, not swallowed, but does not abort the rest of the backfill."""
@@ -71,7 +87,13 @@ def process_months(
     for year, month in months:
         try:
             result = process_month(
-                year, month, force=force, manifest_path=manifest_path
+                year,
+                month,
+                force=force,
+                manifest_path=manifest_path,
+                raw_dir=raw_dir,
+                rejected_dir=rejected_dir,
+                curated_dir=curated_dir,
             )
         except Exception as exc:  # noqa: BLE001 -- isolating one month's failure from the rest of the backfill is the point; a narrower type would defeat it
             logger.error("failed to process %04d-%02d: %s", year, month, exc)

@@ -100,5 +100,15 @@
 - A real migration scenario surfaced naturally: old manifest entries from Lesson 11 lacked `raw_file_size` entirely. `previous.get("raw_file_size")` returning `None` correctly never matches a real size, so old entries safely triggered exactly one necessary reprocessing rather than crashing or wrongly trusting stale data.
 - Backfill resilience means isolating failures, not avoiding them: `process_months()` now catches `Exception` broadly (a deliberately justified, `noqa`'d exception to the no-blind-except rule) specifically because a backfill driver can't know in advance what kind of error a bad month will throw — narrowing the catch would defeat the entire point of letting other months succeed.
 
+## Lesson 13 — Automated tests, closing Phase 4
+- Unit tests and integration tests catch structurally different bugs: `test_pipeline.py` mocks every stage to test `process_month()`'s own control flow (skip/force/source-change logic) in isolation; the new `test_integration.py` mocks only the network call, running every real stage together — this is the only kind of test that could ever catch a composition/contract bug between two real functions (e.g. `clean_trips()` silently renaming an output column).
+- Writing the first real integration test immediately surfaced a genuine gap: `process_month()` had no way to redirect raw/rejected/curated output to a test directory — only `manifest_path` got that treatment back in Lesson 11. Fixed by adding the missing overrides, consistent with every other I/O function in the project. This is what integration tests are for beyond catching logic bugs — they expose missing configurability that mocked tests never touch.
+- `validate_schema()` (Lesson 4) and `profile_parquet()` (Lesson 5) got different final answers to "should this be wired into the automated pipeline," for a clear, principled reason: schema drift has an automated action to take (raise, with specifics); profiling has none (it's for a human to look at and decide whether rules need updating). Wiring in a tool with no action to take would just compute and discard.
+- The new schema-drift `RuntimeError` is automatically caught and isolated by Lesson 12's `process_months()` broad exception handling, with zero code changes needed there — concrete evidence that abstraction was built generally enough to absorb a failure mode it was never specifically designed around.
+
+**Follow-up — caught a real gap after first declaring this lesson done:** every integration test called `process_month()` singular; none exercised `process_months()` with real stages. Added two real multi-month tests: independent correctness across two real months (no cross-contamination), and a real failure in the middle of three months leaving zero trace (no manifest entry, no curated directory) while the two real successes on either side complete normally. Also confirmed directly, since it was asked: `process_months()` is strictly serial — a plain for-loop, no parallelism anywhere at the month-orchestration level.
+
+**Phase 4 (Multi-month reliable pipeline) is complete.**
+
 ## Open questions
 - (none yet — add here as they come up)
