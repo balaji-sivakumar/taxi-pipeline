@@ -11,3 +11,8 @@ data/rejected/*
 !data/rejected/.gitkeep
 data/curated/*
 !data/curated/.gitkeep
+
+# manifest.json's claims are only valid relative to local raw/curated files,
+# which are themselves gitignored -- committing it alone would let a fresh
+# clone show months as "processed" with no underlying data to back that up.
+data/manifest.json

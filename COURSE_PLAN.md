@@ -20,8 +20,8 @@ Status legend: ✅ done · 🔜 next · ⬜ not started
 - ✅ Lesson 10: built `write_curated()` — `year=/month=` partitioning (matching raw's granularity, rejected zone-partitioning as a small-files trap), always-overwrite idempotency model (contrasted with Lesson 3's skip-if-correct). Verified 47.6MB raw → 114KB curated (~400x), overwrite-not-merge directly, and end-to-end count conservation via DuckDB's Hive-partition glob. Comprehension check: 3/3 correct. **Phase 3 complete.**
 
 ## Phase 4 — Multi-month reliable pipeline
-- 🔜 Lesson 11: Process multiple monthly files, track processed inputs
-- ⬜ Incremental loads, deduplication, backfills
+- ✅ Lesson 11: built a JSON manifest (`manifest.py`) and pipeline driver (`process_month`/`process_months` in `pipeline.py`) for pipeline-level idempotency, layered on top of each stage's own. Processed January + February for real, proved rerunning skips both with zero filesystem/network activity, and that `force=True` bypasses only the manifest check (download_month's own skip still applies underneath). Manifest deliberately gitignored (claims only valid relative to local, also-gitignored raw/curated files). Comprehension check: 3/3 correct.
+- 🔜 Lesson 12: Incremental loads, deduplication, backfills
 - ⬜ Automated tests
 
 ## Phase 5 — Trend analysis

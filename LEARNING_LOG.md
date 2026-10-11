@@ -84,5 +84,14 @@
 
 **Phase 3 (Transformation and analytical storage) is complete.**
 
+## Lesson 11 — Processing multiple months and tracking what's done
+- Stage-level idempotency (download skips if correct, curated always overwrites) is a different layer from pipeline-level idempotency (did this month's *entire* run actually finish). Neither replaces the other — the manifest sits on top, and each stage still independently decides its own behavior underneath it.
+- JSON over Parquet for the manifest, deliberately: a manifest is a small, constantly read-modify-written control file, not bulk analytical data — Parquet's columnar/row-group model fits the latter, not the former. Using Parquet here would just be reaching for the default tool out of habit.
+- Verified the skip is real, not assumed: reran `process_months` on the same two months and got zero downloads, zero recomputation — purely a manifest read.
+- `force=True` and `download_month()`'s own skip compose correctly and independently: forcing January's reprocessing reran validate/clean/aggregate/curate, but the download itself *still* skipped because the raw file was genuinely unchanged.
+- `data/manifest.json` is gitignored on purpose: its claims are only meaningful relative to local `raw`/`curated` files, which are themselves gitignored. Committing it alone would be a control file lying about state a fresh clone doesn't actually have — a real anti-pattern, not just a style choice.
+- Our own operational metadata (`processed_at`) uses a proper timezone-aware UTC timestamp, in deliberate contrast to the naive datetimes used elsewhere in the project to match TLC's own undocumented-timezone columns — no external contract to match here, so no reason not to do it correctly.
+- This hand-rolled manifest is explicitly a stepping stone: Phase 7's Prefect will provide real run history/state tracking. Building the manual version first is what should make that tool's actual value legible later, rather than it just being "the tool we were told to add."
+
 ## Open questions
 - (none yet — add here as they come up)
