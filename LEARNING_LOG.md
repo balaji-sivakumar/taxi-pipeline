@@ -110,5 +110,14 @@
 
 **Phase 4 (Multi-month reliable pipeline) is complete.**
 
+## Lesson 14 — Hourly demand patterns (Phase 5 begins)
+- Phase 5 marks a real shift in character: Phases 1-4 were about making the data trustworthy; Phase 5 is about actually spending it. This lesson was the first where that shift showed up as a genuine comprehension gap, not just new vocabulary — data-engineering concepts kept mapping onto prior architecture experience; exploratory-analysis/statistics concepts don't have that same anchor yet.
+- Trend analysis deliberately collapses dimensions the pipeline worked hard to preserve (zone, exact date) — the pipeline's job was never losing detail prematurely; analysis's job is finding the pattern underneath the detail on purpose. Both are correct for their own goal.
+- Two distinct averaging traps, each verified against real data rather than taken on faith: (1) flat-averaging across zones instead of summing them first divides the result by the zone count, silently answering "how busy is one typical zone" instead of "how busy is the whole city" — confirmed with a toy example where flat average (25) was exactly half of sum-then-average (50) for 2 zones. (2) Summing (not averaging) across dates for a day-of-week comparison biases toward whichever weekday happens to occur more often in the window — confirmed the real 60-day window has 9 Mondays but only 8 Sundays, not an even split.
+- Real findings: single citywide demand peak at 6pm (not the two-peak commuter pattern subway ridership shows), Thursday busiest, Monday quietest, no simple weekday/weekend split — Saturday is nearly as busy as Thursday.
+- `load_curated()` doesn't hardcode a month — it globs every file in `data/curated/`, so the averaging automatically scales to however many months have been processed (currently 60 days, January + February) with zero code changes as more months are added.
+- Matplotlib introduced for the first time, per the original tech stack decision from Lesson 0, finally exercised here.
+- **Process note for future lessons:** when a lesson hits genuinely new (non-DE) territory, rebuild the concept from a tiny hand-worked example with no code first, and check in after each small piece — don't deliver code, tests, and conclusions together before confirming the core idea landed.
+
 ## Open questions
-- (none yet — add here as they come up)
+- Zone comparisons (part of Phase 5's original scope) not yet covered — deferred to Lesson 15.

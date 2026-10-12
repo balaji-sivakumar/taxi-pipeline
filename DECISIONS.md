@@ -228,3 +228,17 @@ Format: Decision / Context / Alternatives considered / Trade-off accepted.
 **Worth stating precisely, since it was asked directly: `process_months()` is strictly serial.** It's a plain `for year, month in months:` loop — one month fully completes or fails before the next one starts. There is no parallelism anywhere at the month-orchestration level in this project. (Individual stages use multi-threading *within* one month's computation via Polars/DuckDB — unrelated to whether multiple months run concurrently, which they don't.)
 
 **Phase 4 is complete.**
+
+## 20. Trend analysis lives outside the automated pipeline, same reasoning as profiling
+
+**Context:** Phase 5 begins actually using the curated data (Phases 1-4 only ever built and verified it). First question: where does exploratory analysis code live relative to `pipeline.py`?
+
+**Decision:** `src/taxi_pipeline/analysis.py` is never imported by `pipeline.py` — same reasoning as `profile_parquet()` (Decision in Lesson 13): this is a human-driven exploration tool with no automated action to take on its output, not a pipeline stage. `load_curated()` reads the curated layer across all available months via a glob, independent of any single month's processing run.
+
+**A genuinely new aggregation level, distinct from anything in the pipeline:** the pipeline deliberately keeps `(pickup_hour, pickup_location_id)` granular (Lesson 9's whole point was not losing that). `hourly_profile()`/`day_of_week_profile()` deliberately collapse it — first summing across zones (one citywide total per actual date+hour), then **averaging** (not summing) across dates. The mean at the second step isn't a style choice: the dataset's date range doesn't contain an equal number of each weekday, so summing would bias the day-of-week comparison toward whichever weekday happens to occur more often in Jan+Feb 2024. Tested directly: a weekday appearing twice with identical per-occurrence magnitude as another appearing once must produce identical averages, not an inflated one.
+
+**Real findings from the actual Jan+Feb 2024 curated data (60 days):** a single citywide demand peak at **6pm** (7,123 avg pickups), not the two-peak commuter pattern subway ridership typically shows — consistent with taxi demand being driven more by general daytime/evening activity than fixed commute hours. Day-of-week: **Thursday highest** (110,777), **Monday lowest** (81,414), with Saturday close behind Thursday (105,703) — not a simple weekday/weekend split.
+
+**Matplotlib introduced for the first time** (planned in the original tech stack, unused until now) — `plot_hourly_profile()`/`plot_day_of_week_profile()` are tested for "runs correctly and produces a real non-empty file," since asserting on pixel content isn't meaningful; the two real charts were visually inspected directly against the numeric tables they're built from, not trusted blindly.
+
+**Trade-off accepted:** Generated chart PNGs are not committed to the repo — they're regenerable from code + data at any time, and would go stale the moment more months are added, same reasoning as not committing `data/curated/` itself.
