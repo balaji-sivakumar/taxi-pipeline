@@ -9,7 +9,20 @@ from taxi_pipeline.analysis import (
     hourly_profile,
     plot_day_of_week_profile,
     plot_hourly_profile,
+    plot_zone_totals,
+    zone_totals,
 )
+
+
+def _write_lookup(path):
+    pl.DataFrame(
+        {
+            "LocationID": [1, 2, 3],
+            "Borough": ["Manhattan", "Queens", "Bronx"],
+            "Zone": ["Zone One", "Zone Two", "Zone Three"],
+            "service_zone": ["Yellow Zone", "Boro Zone", "Boro Zone"],
+        }
+    ).write_csv(path)
 
 
 def test_hourly_profile_sums_zones_then_averages_across_days():
@@ -110,6 +123,60 @@ def test_plot_day_of_week_profile_produces_a_real_file(tmp_path):
     save_path = tmp_path / "dow.png"
 
     result = plot_day_of_week_profile(day_of_week_profile(curated), save_path)
+
+    assert result == save_path
+    assert save_path.exists()
+    assert save_path.stat().st_size > 0
+
+
+def test_zone_totals_sums_pickups_and_joins_real_names(tmp_path):
+    lookup_path = tmp_path / "lookup.csv"
+    _write_lookup(lookup_path)
+    curated = pl.DataFrame(
+        {
+            "pickup_hour": [datetime(2024, 1, 1, 10, 0)] * 3,
+            "pickup_location_id": [1, 1, 2],
+            "pickup_count": [10, 5, 3],
+        }
+    )
+
+    totals = zone_totals(curated, lookup_path)
+
+    zone_one = totals.filter(pl.col("pickup_location_id") == 1)
+    assert zone_one["total_pickups"].item() == 15
+    assert zone_one["Zone"].item() == "Zone One"
+    assert zone_one["Borough"].item() == "Manhattan"
+
+
+def test_zone_totals_sorted_busiest_first(tmp_path):
+    lookup_path = tmp_path / "lookup.csv"
+    _write_lookup(lookup_path)
+    curated = pl.DataFrame(
+        {
+            "pickup_hour": [datetime(2024, 1, 1, 10, 0)] * 2,
+            "pickup_location_id": [2, 1],
+            "pickup_count": [3, 15],
+        }
+    )
+
+    totals = zone_totals(curated, lookup_path)
+
+    assert totals["pickup_location_id"].to_list() == [1, 2]
+
+
+def test_plot_zone_totals_produces_a_real_file(tmp_path):
+    lookup_path = tmp_path / "lookup.csv"
+    _write_lookup(lookup_path)
+    curated = pl.DataFrame(
+        {
+            "pickup_hour": [datetime(2024, 1, 1, 10, 0)] * 2,
+            "pickup_location_id": [1, 2],
+            "pickup_count": [10, 5],
+        }
+    )
+    save_path = tmp_path / "zones.png"
+
+    result = plot_zone_totals(zone_totals(curated, lookup_path), save_path, top_n=2)
 
     assert result == save_path
     assert save_path.exists()

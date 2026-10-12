@@ -119,5 +119,14 @@
 - Matplotlib introduced for the first time, per the original tech stack decision from Lesson 0, finally exercised here.
 - **Process note for future lessons:** when a lesson hits genuinely new (non-DE) territory, rebuild the concept from a tiny hand-worked example with no code first, and check in after each small piece — don't deliver code, tests, and conclusions together before confirming the core idea landed.
 
+## Lesson 15 — Zone comparisons, real zone names, Phase 5 complete
+- A single grouping step (grand total) was enough here, unlike Lesson 14's two-step sum-then-average — because this question ("which zone is busiest overall") doesn't need a "typical value," just a total. Useful to notice when the extra averaging step is and isn't needed.
+- A dimension table (TLC's real zone lookup, 265 rows) joined onto the trip-derived data by `pickup_location_id == LocationID` — verified first that no curated zone was missing from the lookup, since an inner join silently drops unmatched rows with no error, which would have quietly deleted pickup totals rather than failing loudly.
+- The zone lookup CSV is committed to git, a deliberate exception to "never commit data/": it's small, stable reference data rather than a derived pipeline output, so a fresh clone should have it without needing network access — the opposite reasoning from why raw/curated/rejected/manifest are all gitignored.
+- Real result doubled as a face-validity check on the entire pipeline: top zones (Midtown, Upper East Side, JFK, LaGuardia, Times Square, Penn Station) are exactly what a correctly-built NYC taxi dataset should produce — meaning ingestion, quality rules, transform, and aggregation all had to be right for this ranking to come out sensible.
+- This lesson also validated the process-note from Lesson 14: breaking a new concept into small, confirmed pieces (basic grouping → the join concept, using prior DB/join intuition → downloading the real file → verifying before trusting it → formalizing into tested code) worked far better than Lesson 14's original all-at-once delivery.
+
+**Phase 5 (Trend analysis) is complete.**
+
 ## Open questions
-- Zone comparisons (part of Phase 5's original scope) not yet covered — deferred to Lesson 15.
+- (none yet — add here as they come up)

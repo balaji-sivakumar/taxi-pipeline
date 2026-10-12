@@ -5,9 +5,29 @@ import polars as pl
 
 from taxi_pipeline.curated import CURATED_DIR
 
+ZONE_LOOKUP_PATH = Path("data/reference/taxi_zone_lookup.csv")
+
 
 def load_curated(curated_dir: Path = CURATED_DIR) -> pl.DataFrame:
     return pl.read_parquet(f"{curated_dir}/year=*/month=*/*.parquet")
+
+
+def zone_totals(
+    curated_df: pl.DataFrame, lookup_path: Path = ZONE_LOOKUP_PATH
+) -> pl.DataFrame:
+    """Total pickups per zone over the whole dataset, with real zone names joined in.
+
+    A single grouping step, deliberately: unlike hourly_profile/day_of_week_profile,
+    this answers "what's the grand total" rather than "what's typical", so there's
+    no need for the sum-then-average two-step -- one sum is the whole answer.
+    """
+    lookup = pl.read_csv(lookup_path)
+    return (
+        curated_df.group_by("pickup_location_id")
+        .agg(pl.col("pickup_count").sum().alias("total_pickups"))
+        .join(lookup, left_on="pickup_location_id", right_on="LocationID")
+        .sort("total_pickups", descending=True)
+    )
 
 
 def hourly_profile(curated_df: pl.DataFrame) -> pl.DataFrame:
@@ -72,6 +92,20 @@ def plot_day_of_week_profile(profile: pl.DataFrame, save_path: Path) -> Path:
     ax.set_xlabel("Day of week")
     ax.set_ylabel("Average citywide pickups")
     ax.set_title("Average daily pickup demand by weekday (Jan-Feb 2024)")
+    fig.tight_layout()
+    fig.savefig(save_path)
+    plt.close(fig)
+    return save_path
+
+
+def plot_zone_totals(totals: pl.DataFrame, save_path: Path, top_n: int = 15) -> Path:
+    top = totals.head(top_n)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.barh(top["Zone"], top["total_pickups"])
+    ax.invert_yaxis()
+    ax.set_xlabel("Total pickups (Jan-Feb 2024)")
+    ax.set_ylabel("Zone")
+    ax.set_title(f"Top {top_n} zones by total pickups")
     fig.tight_layout()
     fig.savefig(save_path)
     plt.close(fig)

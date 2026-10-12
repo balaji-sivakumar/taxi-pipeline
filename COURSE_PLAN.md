@@ -26,10 +26,10 @@ Status legend: ✅ done · 🔜 next · ⬜ not started
 
 ## Phase 5 — Trend analysis
 - ✅ Lesson 14: built `hourly_profile()` and `day_of_week_profile()` (`analysis.py`) — deliberately lossy aggregation (collapse zone, collapse date) to find the citywide pattern; introduced Matplotlib for the first time. This lesson slowed down significantly partway through at the user's request — genuinely new DS/EDA territory, unlike Phases 1-4's DE concepts which mapped to prior architecture experience. Rebuilt the core ideas from first principles with tiny hand-worked examples before any code: why pickup_hour already contains the date (no separate "day" field needed), why summing zones then averaging dates differs from a flat average (flat average divides by zone count, answering "typical single zone" not "typical city"), and why day-of-week needs mean not sum (confirmed real data has 9 Mondays vs 8 Sundays in the 60-day window, so summing would bias toward more-frequent weekdays). Real findings: single citywide peak at 6pm (not NYC subway's two-peak pattern), Thursday busiest day, Monday quietest, no simple weekday/weekend split. Comprehension check (reduced, targeted after the rocky start): 2/2 correct. **Zone comparisons not yet done — still open from this phase's original scope.**
-- 🔜 Lesson 15: Zone comparisons
+- ✅ Lesson 15: built `zone_totals()` — single-step ranking (grand total, not "typical value," a useful contrast to Lesson 14's two-step sum-then-average). Downloaded TLC's real zone lookup table (verified via live fetch, not memory) and joined it in — checked first that no curated zone was missing from the lookup before trusting the join. Committed the lookup CSV to git, a deliberate exception to the "never commit data/" rule since it's stable reference data, not a derived artifact. Real result: top 10 zones (Midtown, Upper East Side, JFK, LaGuardia, Times Square, Penn Station) are exactly what a correct NYC dataset should produce — a face-validity check on the whole pipeline since Lesson 1. Comprehension check: 2/2 correct. **Phase 5 complete.**
 
 ## Phase 6 — Prediction
-- ⬜ Define prediction target, baseline, calendar/lag features (leakage-safe)
+- 🔜 Lesson 16: Define prediction target, baseline, calendar/lag features (leakage-safe)
 - ⬜ Train and evaluate model, generate next-day predictions
 
 ## Phase 7 — Orchestration and operations

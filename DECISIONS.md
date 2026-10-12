@@ -242,3 +242,15 @@ Format: Decision / Context / Alternatives considered / Trade-off accepted.
 **Matplotlib introduced for the first time** (planned in the original tech stack, unused until now) — `plot_hourly_profile()`/`plot_day_of_week_profile()` are tested for "runs correctly and produces a real non-empty file," since asserting on pixel content isn't meaningful; the two real charts were visually inspected directly against the numeric tables they're built from, not trusted blindly.
 
 **Trade-off accepted:** Generated chart PNGs are not committed to the repo — they're regenerable from code + data at any time, and would go stale the moment more months are added, same reasoning as not committing `data/curated/` itself.
+
+## 21. Zone names loaded as a dimension table, and committed to git (unlike everything else in data/)
+
+**Context:** Zone comparisons (`zone_totals()`) ranked zones by `pickup_location_id` alone — meaningless to a human reader without real names. Decision #13/#16 both flagged this limitation (TLC's official ~265-zone list was never loaded) without fixing it.
+
+**Decision:** Downloaded TLC's official `taxi_zone_lookup.csv` (verified via live fetch of the real nyc.gov source, same approach as Lesson 2, not from memory) to `data/reference/taxi_zone_lookup.csv`, and join it into `zone_totals()` on `pickup_location_id == LocationID`. Unlike every other file under `data/`, **this one is committed to git**: it's small (265 rows), stable (rarely changes), and is reference/configuration data rather than something derived by rerunning the pipeline — committing it means a fresh clone gets the exact zone mapping used without needing network access, the opposite reasoning from why raw/curated/rejected/manifest are all gitignored.
+
+**No idempotent-download machinery needed, deliberately:** a plain one-off `curl`, not `download_month()`. Lesson 3's idempotent download pattern exists specifically for a large file fetched repeatedly across many pipeline runs — this is a small file fetched once.
+
+**Verified before trusting the join, not assumed:** checked whether any zone in the curated data was missing from the lookup table (none were — all 261 zones observed in Jan+Feb curated data exist in the 265-zone official list) before committing to an inner join, which would otherwise have silently dropped unmatched rows' pickup totals.
+
+**Real result, and a useful sanity check on the whole pipeline:** the top 10 zones by total pickups are Midtown Center, Upper East Side (both halves), JFK Airport, Midtown East, Times Sq/Theatre District, Penn Station, Lincoln Square East, Upper West Side South, and LaGuardia Airport — all exactly the kind of dense-commercial-Manhattan-plus-major-airports result a real NYC taxi dataset should produce. This is a face-validity check on everything built since Lesson 1: ingestion, quality rules, transform, and aggregation all had to be correct for this ranking to come out sensible.
