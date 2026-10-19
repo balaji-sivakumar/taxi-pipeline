@@ -270,3 +270,15 @@ Format: Decision / Context / Alternatives considered / Trade-off accepted.
 **Trade-off accepted:** No fallback prediction built for unseen zones (e.g. a citywide or borough-level backup average) — deliberately deferred rather than bundled into establishing the first baseline; the 696 excluded rows are reported, not silently dropped, which was judged sufficient for now.
 
 **`add_calendar_features()` extracted to a new `features.py`** — the third real use of the date/hour/weekday-extraction logic (after `hourly_profile()` and `day_of_week_profile()` in Lesson 14), justified by the same "refactor on the second-or-later real use" principle as `month_bounds()`.
+
+## 23. Lag feature implemented as a row-count shift, dependent on Lesson 9's dense grid
+
+**Context:** The baseline's biggest weakness (Lesson 16/17 investigation) is high week-to-week variance at busy zones like JFK Airport (zone 132): actual Tuesday-6pm values ranged from 141 to 340 across 9 real weeks, while a flat historical average can only ever predict one number. A lag feature — using a specific past actual value as a predictive input — is a different kind of signal than an average: "what just happened" instead of "what's typical."
+
+**A leakage risk specific to lag features, distinct from Lesson 16's train/test leakage:** shifting in the wrong direction turns a lag feature into a forward-looking one — silently smuggling a future value into what's supposed to be a backward-looking input. Demonstrated concretely with JFK's real numbers: a correct lag-1 for Jan 9 is `340` (Jan 2's value, genuinely in the past); an accidentally-reversed shift would give Jan 9 a lag of `273` — Jan 16's value, a week that hadn't happened yet.
+
+**Decision:** `add_lag_feature(df, lag_hours)` in `features.py` sorts by `(pickup_location_id, pickup_hour)` and shifts `pickup_count` backward by `lag_hours` *rows*, computed `.over("pickup_location_id")` so one zone's history never bleeds into another's (verified directly: a two-zone test confirms zone 1's lag value never comes from zone 2's data).
+
+**A real, load-bearing dependency on earlier work:** a row-count shift of `168` is only truly "168 hours ago" if the underlying sequence has no gaps — which is only guaranteed because `aggregate_hourly_demand()` (Lesson 9) produces a dense, zero-filled grid with exactly one row per zone per hour. Without that earlier design decision, lag features computed this way would silently be wrong by a variable, undetectable amount depending on how many hours happened to be missing.
+
+**A real bug found via testing, not in the function itself:** the first test draft used daily-spaced synthetic rows (one per day) but requested a 24-*row* shift, producing all-null results — not a shift-direction bug, but a granularity mismatch between the test fixture and the function's actual row-based semantics. Fixed by using properly hourly-spaced fixtures with `lag_hours=1`. Verified the real implementation against JFK's actual 9-week Tuesday-6pm history and reproduced the hand-worked lag table from the lesson's conceptual walkthrough exactly.
