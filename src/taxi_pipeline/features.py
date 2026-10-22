@@ -26,3 +26,32 @@ def add_lag_feature(df: pl.DataFrame, lag_hours: int = 168) -> pl.DataFrame:
         .over("pickup_location_id")
         .alias(f"lag_{lag_hours}h")
     )
+
+
+def add_historical_avg_feature(
+    df: pl.DataFrame, baseline_table: pl.DataFrame | None = None
+) -> pl.DataFrame:
+    """Add historical_avg: the group's mean pickup_count for (zone, hour, weekday).
+
+    If baseline_table is given, looks it up by join -- safe for test/held-out
+    data, which never contributed to that average. If not given, computes a
+    leave-one-out average directly from df's own rows -- required when adding
+    this feature to the SAME data the average is built from, so a row's own
+    value never leaks into its own feature (same leakage shape as Lesson 16's
+    averaging trap, reappearing inside a feature instead of an evaluation metric).
+    """
+    if baseline_table is not None:
+        return df.join(
+            baseline_table.rename({"predicted_pickups": "historical_avg"}),
+            on=["pickup_location_id", "hour_of_day", "weekday"],
+            how="left",
+        )
+
+    keys = ["pickup_location_id", "hour_of_day", "weekday"]
+    group_sum = pl.col("pickup_count").sum().over(keys)
+    group_count = pl.col("pickup_count").count().over(keys)
+    return df.with_columns(
+        historical_avg=pl.when(group_count > 1)
+        .then((group_sum - pl.col("pickup_count")) / (group_count - 1))
+        .otherwise(None)
+    )

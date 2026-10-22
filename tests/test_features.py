@@ -4,7 +4,11 @@ from datetime import datetime
 
 import polars as pl
 
-from taxi_pipeline.features import add_calendar_features, add_lag_feature
+from taxi_pipeline.features import (
+    add_calendar_features,
+    add_historical_avg_feature,
+    add_lag_feature,
+)
 
 
 def test_add_calendar_features_extracts_correct_components():
@@ -71,3 +75,67 @@ def test_add_lag_feature_null_for_first_observation_per_zone():
     result = add_lag_feature(df, lag_hours=1)
 
     assert result["lag_1h"].is_null().all()
+
+
+def test_add_historical_avg_feature_with_baseline_table_is_a_lookup():
+    baseline_table = pl.DataFrame(
+        {
+            "pickup_location_id": [132],
+            "hour_of_day": [18],
+            "weekday": [2],
+            "predicted_pickups": [227.25],
+        }
+    )
+    test_df = pl.DataFrame(
+        {
+            "pickup_location_id": [132],
+            "hour_of_day": [18],
+            "weekday": [2],
+            "pickup_count": [205],
+        }
+    )
+
+    result = add_historical_avg_feature(test_df, baseline_table)
+
+    assert result["historical_avg"].item() == 227.25
+
+
+def test_add_historical_avg_feature_leave_one_out_excludes_own_value():
+    # Matches the hand-verified JFK Tuesday 6pm example: 223, 273, 220, 193
+    df = pl.DataFrame(
+        {
+            "pickup_location_id": [132, 132, 132, 132],
+            "hour_of_day": [18, 18, 18, 18],
+            "weekday": [2, 2, 2, 2],
+            "pickup_count": [223, 273, 220, 193],
+        }
+    )
+
+    result = add_historical_avg_feature(df)
+
+    expected = [
+        (273 + 220 + 193) / 3,
+        (223 + 220 + 193) / 3,
+        (223 + 273 + 193) / 3,
+        (223 + 273 + 220) / 3,
+    ]
+    actual = [
+        result.filter(pl.col("pickup_count") == v)["historical_avg"].item()
+        for v in [223, 273, 220, 193]
+    ]
+    assert actual == expected
+
+
+def test_add_historical_avg_feature_null_for_single_sample_group():
+    df = pl.DataFrame(
+        {
+            "pickup_location_id": [1],
+            "hour_of_day": [0],
+            "weekday": [1],
+            "pickup_count": [50],
+        }
+    )
+
+    result = add_historical_avg_feature(df)
+
+    assert result["historical_avg"].item() is None
