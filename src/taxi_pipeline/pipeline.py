@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 
 import polars as pl
+from prefect import flow
 
 from taxi_pipeline.aggregate import aggregate_hourly_demand
 from taxi_pipeline.curated import CURATED_DIR, write_curated
@@ -15,6 +16,7 @@ from taxi_pipeline.transform import clean_trips
 logger = logging.getLogger(__name__)
 
 
+@flow
 def process_month(
     year: int,
     month: int,

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import polars as pl
+from prefect import task
 
 CURATED_DIR = Path("data/curated")
 
@@ -14,6 +15,7 @@ def curated_path_for(year: int, month: int, curated_dir: Path = CURATED_DIR) -> 
     )
 
 
+@task
 def write_curated(
     demand_df: pl.DataFrame, year: int, month: int, curated_dir: Path = CURATED_DIR
 ) -> Path:

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import polars as pl
+from prefect import task
 
 # Recorded from yellow_tripdata_2024-01.parquet (NYC TLC), inspected 2026-10-03.
 # This is our explicit record of the source's data contract. If a future
@@ -28,6 +29,7 @@ YELLOW_TRIPDATA_SCHEMA: dict[str, pl.DataType] = {
 }
 
 
+@task
 def validate_schema(path: Path) -> list[str]:
     """Compare a Parquet file's actual schema against YELLOW_TRIPDATA_SCHEMA.
 

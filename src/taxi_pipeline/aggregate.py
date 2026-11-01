@@ -1,10 +1,12 @@
 import datetime
 
 import polars as pl
+from prefect import task
 
 from taxi_pipeline.dates import month_bounds
 
 
+@task
 def aggregate_hourly_demand(
     cleaned_df: pl.DataFrame, year: int, month: int
 ) -> pl.DataFrame:

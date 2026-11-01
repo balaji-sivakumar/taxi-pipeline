@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 
 import requests
+from prefect import task
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ def raw_path_for(year: int, month: int, raw_dir: Path = RAW_DIR) -> Path:
     )
 
 
+@task
 def download_month(year: int, month: int, raw_dir: Path = RAW_DIR) -> Path:
     url = SOURCE_URL_TEMPLATE.format(year=year, month=month)
     target = raw_path_for(year, month, raw_dir)

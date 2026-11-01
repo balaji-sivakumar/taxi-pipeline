@@ -3,6 +3,7 @@ from functools import reduce
 from pathlib import Path
 
 import polars as pl
+from prefect import task
 
 from taxi_pipeline.dates import month_bounds
 
@@ -27,6 +28,7 @@ def build_quality_rules(year: int, month: int) -> dict[str, pl.Expr]:
     }
 
 
+@task
 def apply_quality_rules(
     lf: pl.LazyFrame, year: int, month: int
 ) -> tuple[pl.DataFrame, pl.DataFrame]:

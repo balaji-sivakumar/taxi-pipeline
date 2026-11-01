@@ -1,7 +1,9 @@
 import duckdb
 import polars as pl
+from prefect import task
 
 
+@task
 def clean_trips(valid_df: pl.DataFrame) -> pl.DataFrame:
     """Rename source columns to curated-layer names and derive pickup_hour for aggregation."""
     return duckdb.sql(

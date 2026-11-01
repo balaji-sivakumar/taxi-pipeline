@@ -37,7 +37,8 @@ Status legend: ✅ done · 🔜 next · ⬜ not started
 **Phase 6 (Prediction) is complete** — baseline, lag features, a validated model, and real next-day forecasting all built and verified against real data.
 
 ## Phase 7 — Orchestration and operations
-- ⬜ Prefect tasks/flows, retries, logging, scheduled/backfill runs, monitoring
+- ✅ Lesson 20: Added `prefect` (a genuinely heavier dependency, ~96 transitive packages). Decorated `process_month()` with `@flow` and its 6 real stages (`download_month`, `validate_schema`, `apply_quality_rules`, `clean_trips`, `aggregate_hourly_demand`, `write_curated`) with `@task` — zero logic changes. Verified the decorator mechanism directly from a real traceback (a wrapper calling the original function inside its own try/except) and confirmed a real failure (a 403 on a nonexistent month) still worked with `process_months()`'s existing broad exception handling unchanged, since Prefect resolves `Failed` and logs *before* re-raising. Found and fixed a real cost: `@task` functions called directly outside a flow (how most unit tests call them) each spun up a temporary server, 8x'ing the test suite's runtime (2s → 17.58s) — fixed via a session-scoped `prefect_test_harness` fixture (`tests/conftest.py`), bounding setup to one ~4.2s cost instead of per-call. Suite still ~10x slower than pre-Prefect — an accepted, understood cost, not a bug. Comprehension check: 4/4 correct.
+- 🔜 Lesson 21+: retries, scheduling, monitoring (remaining Phase 7 scope)
 
 ## Phase 8 — Serving and architecture
 - ⬜ API/dashboard for curated demand + predictions
