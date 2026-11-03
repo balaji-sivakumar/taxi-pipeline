@@ -19,7 +19,7 @@ def raw_path_for(year: int, month: int, raw_dir: Path = RAW_DIR) -> Path:
     )
 
 
-@task
+@task(retries=2, retry_delay_seconds=1)
 def download_month(year: int, month: int, raw_dir: Path = RAW_DIR) -> Path:
     url = SOURCE_URL_TEMPLATE.format(year=year, month=month)
     target = raw_path_for(year, month, raw_dir)

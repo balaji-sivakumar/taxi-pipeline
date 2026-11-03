@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import pytest
+import requests
 
 from taxi_pipeline.ingest import download_month, raw_path_for
 
@@ -85,6 +86,30 @@ def test_download_month_redownloads_when_existing_file_is_corrupted(tmp_path):
         path = download_month(2024, 1, raw_dir=tmp_path)
 
     assert path.read_bytes() == FAKE_CONTENT
+    mock_get.assert_called_once()
+
+
+def test_download_month_recovers_from_a_transient_head_failure_via_retry(tmp_path):
+    # Simulates a one-off network blip: the first HEAD call raises, the second
+    # (the @task retry, Lesson 21) succeeds -- unlike the permanent-failure
+    # case, this is exactly the scenario retries exist to fix.
+    with (
+        patch(
+            "taxi_pipeline.ingest.requests.head",
+            side_effect=[
+                requests.exceptions.ConnectionError("simulated network blip"),
+                _mock_head(len(FAKE_CONTENT)),
+            ],
+        ) as mock_head,
+        patch(
+            "taxi_pipeline.ingest.requests.get",
+            return_value=_MockGetResponse(FAKE_CONTENT),
+        ) as mock_get,
+    ):
+        path = download_month(2024, 1, raw_dir=tmp_path)
+
+    assert path.read_bytes() == FAKE_CONTENT
+    assert mock_head.call_count == 2
     mock_get.assert_called_once()
 
 
