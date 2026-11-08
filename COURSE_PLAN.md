@@ -45,8 +45,8 @@ Status legend: ✅ done · 🔜 next · ⬜ not started
 **Phase 7 (Orchestration and operations) is complete.**
 
 ## Phase 8 — Serving and architecture
-- ⬜ API/dashboard for curated demand + predictions
-- ⬜ Architecture docs, containerization
+- ✅ Lesson 24: Built `GET /predictions/next-day` (FastAPI — already a free, zero-added-weight dependency via Prefect). Caught and fixed a real architectural flaw (user-identified, not code-review-found): `predict_next_day()` retrained on every call (9.17s measured) — refactored `model.py` into `train_on_all_data()`/`predict_from_model()` plus `train_and_save_model()`/`load_model_artifacts()`/`predict_next_day_from_artifacts()` (model persisted via `joblib`, also free via scikit-learn), giving a ~10x faster serving path (0.89s), verified byte-for-byte identical to the old monolithic output. Quantified the persisted model's real size (1.3GB — 19.1M tree nodes from unconstrained `RandomForestRegressor` growth) and documented it as a known limitation rather than fixing it mid-lesson. Verified end-to-end with a real `uvicorn` server + `curl`; added `tests/test_api.py` with mocked dependencies. Discussed (not built): model versioning, validation-before-promotion, scheduled retraining, drift monitoring. Comprehension check: 4/4 correct.
+- 🔜 Lesson 25+: dashboard for curated demand + predictions; architecture docs, containerization
 
 ## Phase 9 — Advanced data engineering
 - ⬜ Simulate taxi events, batch vs streaming, event vs processing time, local vs cloud design

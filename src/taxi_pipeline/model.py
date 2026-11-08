@@ -1,5 +1,7 @@
 import datetime
+from pathlib import Path
 
+import joblib
 import polars as pl
 from sklearn.ensemble import RandomForestRegressor
 
@@ -11,6 +13,7 @@ from taxi_pipeline.features import (
 )
 
 DEFAULT_LAG_HOURS = 168
+MODEL_PATH = Path("data/models/demand_model.joblib")
 
 
 def one_hot_encode_zones(df: pl.DataFrame, zones: list[int]) -> pl.DataFrame:
@@ -81,15 +84,20 @@ def train_demand_model(
     return model
 
 
-def predict_next_day(
+def train_on_all_data(
     curated_df: pl.DataFrame, lag_hours: int = DEFAULT_LAG_HOURS
-) -> pl.DataFrame:
-    """Generate hourly demand predictions for the day after curated_df's last date.
+) -> tuple[RandomForestRegressor, list[int], pl.DataFrame]:
+    """The training half of what predict_next_day() used to do in one piece
+    (Lesson 19) -- split out in Lesson 24 so it can be run and persisted
+    separately from the (cheap) act of serving a prediction from it.
 
     Trains on ALL available data, not a held-out split -- the train/test split
     exists to measure how good the model is (Lesson 18); a real deployed forecast
     uses every real observation available, since there's no more evaluation
     happening at this point, only production use.
+
+    Returns (model, zones, baseline_table) -- everything predict_from_model()
+    needs to reproduce an identical feature matrix at serving time.
     """
     lag_col = f"lag_{lag_hours}h"
     featured = add_lag_feature(add_calendar_features(curated_df), lag_hours=lag_hours)
@@ -103,6 +111,22 @@ def predict_next_day(
     zones = sorted(complete["pickup_location_id"].unique().to_list())
     model = train_demand_model(one_hot_encode_zones(complete, zones), zones, lag_hours)
 
+    return model, zones, baseline_table
+
+
+def predict_from_model(
+    curated_df: pl.DataFrame,
+    model: RandomForestRegressor,
+    zones: list[int],
+    baseline_table: pl.DataFrame,
+    lag_hours: int = DEFAULT_LAG_HOURS,
+) -> pl.DataFrame:
+    """The serving half of what predict_next_day() used to do in one piece
+    (Lesson 19) -- given an ALREADY-TRAINED model (and the zones/baseline_table
+    it was trained with), builds tomorrow's feature rows and predicts. No
+    fitting happens here -- this is the cheap path meant to run per request.
+    """
+    lag_col = f"lag_{lag_hours}h"
     last_hour: datetime.datetime = curated_df["pickup_hour"].max()
     next_day = last_hour.date() + datetime.timedelta(days=1)
 
@@ -137,4 +161,64 @@ def predict_next_day(
     X_future = future.select(feature_columns(zones, lag_hours)).to_numpy()
     return future.select("pickup_hour", "pickup_location_id").with_columns(
         predicted_pickups=pl.Series(model.predict(X_future))
+    )
+
+
+def predict_next_day(
+    curated_df: pl.DataFrame, lag_hours: int = DEFAULT_LAG_HOURS
+) -> pl.DataFrame:
+    """Generate hourly demand predictions for the day after curated_df's last date.
+
+    Unchanged behavior from Lesson 19 -- now composed from train_on_all_data()
+    + predict_from_model() rather than one monolithic body. Still trains a
+    fresh model every call; kept for exploratory/test use where that cost is
+    fine. The API (Lesson 24) uses the split functions instead, so it never
+    pays this cost per request.
+    """
+    model, zones, baseline_table = train_on_all_data(curated_df, lag_hours)
+    return predict_from_model(curated_df, model, zones, baseline_table, lag_hours)
+
+
+def train_and_save_model(
+    curated_df: pl.DataFrame,
+    lag_hours: int = DEFAULT_LAG_HOURS,
+    model_path: Path = MODEL_PATH,
+) -> Path:
+    """Run training once and persist everything serving needs: the fitted
+    model, the zones list (one-hot columns must match training exactly), and
+    baseline_table (historical_avg must be looked up against the same
+    averages the model learned from). Meant to run on a schedule or by hand --
+    never per-request.
+    """
+    model, zones, baseline_table = train_on_all_data(curated_df, lag_hours)
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(
+        {
+            "model": model,
+            "zones": zones,
+            "baseline_table": baseline_table,
+            "lag_hours": lag_hours,
+        },
+        model_path,
+    )
+    return model_path
+
+
+def load_model_artifacts(model_path: Path = MODEL_PATH) -> dict:
+    return joblib.load(model_path)
+
+
+def predict_next_day_from_artifacts(
+    curated_df: pl.DataFrame, artifacts: dict
+) -> pl.DataFrame:
+    """The actual serving path: load_model_artifacts() once, then call this
+    per request -- no training happens here, only the cheap feature-building
+    + predict steps.
+    """
+    return predict_from_model(
+        curated_df,
+        artifacts["model"],
+        artifacts["zones"],
+        artifacts["baseline_table"],
+        artifacts["lag_hours"],
     )

@@ -6,10 +6,14 @@ import polars as pl
 
 from taxi_pipeline.model import (
     feature_columns,
+    load_model_artifacts,
     one_hot_encode_zones,
     predict_next_day,
+    predict_next_day_from_artifacts,
     prepare_model_data,
+    train_and_save_model,
     train_demand_model,
+    train_on_all_data,
 )
 
 
@@ -106,3 +110,43 @@ def test_predict_next_day_covers_every_zone_and_hour_with_no_nulls():
     assert predictions.height == 24 * 2  # 24 hours x 2 zones
     assert set(predictions["pickup_location_id"].unique().to_list()) == {1, 2}
     assert predictions["predicted_pickups"].is_null().sum() == 0
+
+
+def test_train_on_all_data_returns_model_zones_and_baseline_table():
+    curated = _synthetic_curated(num_weeks=4)
+
+    model, zones, baseline_table = train_on_all_data(curated)
+
+    assert zones == [1, 2]
+    assert baseline_table.height > 0
+    assert hasattr(model, "predict")
+
+
+def test_train_and_save_model_round_trips_through_load_model_artifacts(tmp_path):
+    curated = _synthetic_curated(num_weeks=4)
+    model_path = tmp_path / "demand_model.joblib"
+
+    saved_path = train_and_save_model(curated, model_path=model_path)
+    artifacts = load_model_artifacts(model_path)
+
+    assert saved_path == model_path
+    assert model_path.exists()
+    assert set(artifacts.keys()) == {"model", "zones", "baseline_table", "lag_hours"}
+    assert artifacts["zones"] == [1, 2]
+
+
+def test_predict_next_day_from_artifacts_matches_predict_next_day(tmp_path):
+    # Lesson 24: the split train/serve path must produce identical
+    # predictions to the original monolithic predict_next_day() -- the
+    # refactor changed *when* training happens, not what it computes.
+    curated = _synthetic_curated(num_weeks=4)
+    model_path = tmp_path / "demand_model.joblib"
+    train_and_save_model(curated, model_path=model_path)
+    artifacts = load_model_artifacts(model_path)
+
+    from_artifacts = predict_next_day_from_artifacts(curated, artifacts).sort(
+        ["pickup_hour", "pickup_location_id"]
+    )
+    monolithic = predict_next_day(curated).sort(["pickup_hour", "pickup_location_id"])
+
+    assert from_artifacts.equals(monolithic)
