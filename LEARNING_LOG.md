@@ -215,7 +215,14 @@
 - A satisfying full-circle check: switching to JFK (zone 132) in the live dashboard reproduced the *exact* numbers (`167.89, 52.29, 10.08, 9.96, 14.49...`) first seen all the way back when `predict_next_day()` was originally verified in Lesson 19 — confirming the entire chain (model → persisted artifact → API → dashboard) agrees end to end, not just that each piece works in isolation.
 - Not every new piece of functionality gets the same kind of test: unlike `test_api.py` (a real `TestClient`-based test), `dashboard.py` has no automated test — Streamlit's UI-rendering nature makes that meaningfully harder (no equivalent used here, though Streamlit's own `AppTest` framework exists for this). Verified instead via direct manual inspection, the same category of decision as Lesson 14's Matplotlib charts never getting pixel-content assertions.
 
+## Lesson 26 — Architecture documentation: a snapshot, not a log
+- A log and a snapshot answer different questions, and conflating them makes both worse: `DECISIONS.md` answers "why was this chosen," in the order it happened — excellent for that, useless for "what does the system look like right now" without reading all of it. `ARCHITECTURE.md` answers the second question directly, by linking back to the first rather than repeating it.
+- Deciding what belongs in README vs. DECISIONS vs. ARCHITECTURE was itself the real design question, not the diagram's content — three documents with genuinely different jobs (getting started; historical reasoning; current-state picture) is clearer than one document trying to do all three.
+- A synthesized doc forces explicit judgment calls a chronological log never requires: which 9 of 32 decisions actually belong in a tech-stack summary table, which components are "long-running" vs. "on-demand" vs. "demo-only" in a real deployment — questions `DECISIONS.md` never had to answer because it just records things in the order they happened.
+- A doc like this has a real maintenance cost precisely because it isn't automatically regenerated — it can drift from the real system if nothing deliberately updates it. Addressed by giving it an explicit, narrower update trigger in `CLAUDE.md` (changes to components/data-flow/deployment, not every lesson) rather than leaving "keep it current" as a vague aspiration.
+
 ## Open questions
 - Model artifact versioning, validation-before-promotion, scheduled retraining, and drift monitoring — discussed conceptually in Lesson 24, not built.
 - Reducing the 1.3GB model artifact's size (tree depth/leaf constraints, or a different algorithm) — a real, measured limitation, deliberately left open rather than re-opening Lesson 18's tuning mid-serving-lesson.
 - An automated test for `dashboard.py` (e.g. via Streamlit's `AppTest`) — not built in Lesson 25, verified manually instead.
+- Containerization — the last piece of Phase 8's planned scope, not yet started.

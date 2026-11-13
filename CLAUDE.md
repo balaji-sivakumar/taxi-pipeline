@@ -40,4 +40,6 @@ Do not implement the whole pipeline in one response. Do not silently advance to 
 - `COURSE_PLAN.md` — phases, lessons, completion status
 - `LEARNING_LOG.md` — concepts learned, decisions, open questions
 - `DECISIONS.md` — architecture decisions and trade-offs (ADR style)
+- `ARCHITECTURE.md` — current-state system snapshot (components, data flow, deployment model); summarizes and links to `DECISIONS.md` rather than duplicating its reasoning
 - Update `LEARNING_LOG.md` and `COURSE_PLAN.md` only after a lesson fully completes, not mid-lesson.
+- Update `ARCHITECTURE.md` whenever a change adds/removes a component, changes the data flow, or changes the deployment model (not for every lesson).
